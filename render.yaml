@@ -1,16 +1,18 @@
 # Render Blueprint — ManaWeave (single web service: HTTP + WebSocket + static client)
 # Docs: https://render.com/docs/blueprint-spec
 #
-# NOTE: the persistent disk requires a paid instance (Starter or above).
-# On the free plan, delete the `disk:` block and the DATA_DIR var — the server
-# still runs, but saved decks reset on every deploy/restart (and free services
-# spin down after 15 min of inactivity, ending any live in-memory games).
+# Free plan: no persistent disk. The container filesystem is ephemeral, so
+# saved decks (server/data/decks.json) and in-progress games last only while
+# the instance is up — they're wiped on redeploy and on spin-down (free
+# services sleep after 15 min of inactivity; first request after that takes
+# ~30-60s to cold-start). To persist decks later, upgrade to a paid plan and
+# re-add the disk block + DATA_DIR=/var/data.
 
 services:
   - type: web
     name: manaweave
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     rootDir: server
     buildCommand: npm ci --include=dev && npm run build
@@ -19,15 +21,9 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.11.1
-      - key: DATA_DIR
-        value: /var/data
       # Optional: publish Google Sheets as CSV to override the built-in catalog.
       # Leave blank in the dashboard to use the 37 built-in cards.
       - key: CARD_CSV_UNITS_URL
         sync: false
       - key: CARD_CSV_SPELLS_URL
         sync: false
-    disk:
-      name: manaweave-data
-      mountPath: /var/data
-      sizeGB: 1
