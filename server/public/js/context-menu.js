@@ -39,6 +39,8 @@ function clampToViewport(el, x, y) {
   const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8));
   el.style.left = `${left}px`;
   el.style.top = `${top}px`;
+  // Scale in from the corner nearest the cursor, so the menu grows out of the click.
+  el.style.transformOrigin = `${left < x ? "right" : "left"} ${top < y ? "bottom" : "top"}`;
 }
 
 function buildItem(item, close) {

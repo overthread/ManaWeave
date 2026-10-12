@@ -274,7 +274,7 @@ export function createGameView(deps) {
     const mine = playerId === view.you;
     const el = document.createElement("div");
     el.className = `pile ${kind}${count === 0 ? " empty" : ""}`;
-    const icon = kind === "deck" ? "🂠" : kind === "graveyard" ? "🗑" : "☠";
+    const icon = kind === "deck" ? "🂠" : kind === "graveyard" ? "⚰" : "☠";
     const name = kind === "deck" ? "deck" : kind === "graveyard" ? "discard" : "purge";
     el.innerHTML = `<span class="pile-icon">${icon}</span><span class="pile-name">${name}</span><span class="pile-count">${count}</span>`;
     el.title = mine
@@ -327,7 +327,7 @@ export function createGameView(deps) {
       if (view.turnPlayerId === p.id && !view.winnerPlayerId) {
         const flag = document.createElement("span");
         flag.className = "turn-flag";
-        flag.textContent = "● weaving now";
+        flag.textContent = "✦ weaving now";
         el.appendChild(flag);
       }
 

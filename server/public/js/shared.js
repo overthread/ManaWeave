@@ -97,11 +97,11 @@ export function renderAuthHeader() {
 }
 
 export const COLOURS = {
-  ember: { label: "Ember", hex: "#e0563a", glyph: "🔥" },
-  tide: { label: "Tide", hex: "#3a9ad9", glyph: "🌊" },
-  verdant: { label: "Verdant", hex: "#4caf6d", glyph: "🌿" },
-  umbra: { label: "Umbra", hex: "#9a5bd9", glyph: "🌙" },
-  neutral: { label: "Neutral", hex: "#b9b3c7", glyph: "◇" },
+  ember: { label: "Ember", hex: "#ff6a4d", glyph: "🔥" },
+  tide: { label: "Tide", hex: "#45b7e8", glyph: "🌊" },
+  verdant: { label: "Verdant", hex: "#55cf87", glyph: "🌿" },
+  umbra: { label: "Umbra", hex: "#b678ff", glyph: "🌙" },
+  neutral: { label: "Neutral", hex: "#b8b0cd", glyph: "◇" },
 };
 
 export const ORIENTATION_ARROWS = ["↑", "→", "↓", "←"];
