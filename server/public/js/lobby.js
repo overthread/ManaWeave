@@ -1,5 +1,6 @@
-/** Lobby composition root: create/join, roster, deck selection, chat, start. */
-import { api, ensureProfile, getSession, showError } from "./shared.js";
+/** Lobby composition root: create/join, roster, deck selection, chat, start.
+ *  Sessions are per-tab, so two tabs of one browser = two weavers = local playtest. */
+import { api, requireAuth, renderAuthHeader, getSession, showError, LOBBY_KEY } from "./shared.js";
 
 const state = {
   roomCode: null,
@@ -13,9 +14,8 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 async function refreshDecks() {
-  const session = getSession();
-  if (!session) return;
-  const { decks } = await api(`/api/players/${encodeURIComponent(session.profileId)}/decks`);
+  if (!getSession()) return;
+  const { decks } = await api("/api/decks");
   state.decks = decks;
   renderRoster();
 }
@@ -52,13 +52,9 @@ function renderRoster() {
       }
       select.addEventListener("change", async () => {
         try {
-          const session = getSession();
-          const { deckPlayerId, deckId } = select.value
-            ? { deckPlayerId: session.profileId, deckId: select.value }
-            : { deckPlayerId: "", deckId: "" };
           const { lobby } = await api(`/api/lobbies/${state.roomCode}/deck-selection`, {
             method: "POST",
-            body: { playerId: state.playerId, playerKey: state.playerKey, deckPlayerId, deckId },
+            body: { playerId: state.playerId, playerKey: state.playerKey, deckId: select.value },
           });
           state.lobby = lobby;
           renderRoster();
@@ -86,6 +82,25 @@ function renderRoster() {
       : bothReady
         ? ""
         : "Both seats must pick a deck.";
+  renderPlaytestHint();
+}
+
+/** Solo playtesting: open a second tab, log in as another weaver, join with the code. */
+function renderPlaytestHint() {
+  const hint = $("playtest-hint");
+  if (!hint || !state.roomCode) return;
+  hint.innerHTML = "";
+  if (state.lobby.players.length >= 2) return;
+  const text = document.createElement("span");
+  text.className = "muted";
+  text.style.fontSize = "13px";
+  text.textContent = "Playtesting solo? Open a second seat in another tab of this browser";
+  const link = document.createElement("a");
+  link.href = `/login.html?switch=1&next=${encodeURIComponent(`/lobby.html?join=${state.roomCode}`)}`;
+  link.target = "_blank";
+  link.textContent = "→ open second seat";
+  link.style.marginLeft = "6px";
+  hint.append(text, link);
 }
 
 function renderChat() {
@@ -141,7 +156,7 @@ async function enterRoom(data) {
   state.playerId = data.playerId;
   state.playerKey = data.playerKey;
   state.lobby = data.lobby;
-  localStorage.setItem("manaweave.lobby", JSON.stringify({ roomCode: data.roomCode, playerId: data.playerId, playerKey: data.playerKey }));
+  sessionStorage.setItem(LOBBY_KEY, JSON.stringify({ roomCode: data.roomCode, playerId: data.playerId, playerKey: data.playerKey }));
   $("join-panel").style.display = "none";
   renderLobby(data.lobby);
   connectWs();
@@ -149,7 +164,7 @@ async function enterRoom(data) {
 }
 
 async function tryResume() {
-  const saved = JSON.parse(localStorage.getItem("manaweave.lobby") ?? "null");
+  const saved = JSON.parse(sessionStorage.getItem(LOBBY_KEY) ?? "null");
   if (!saved?.roomCode) return false;
   try {
     const lobby = await api(`/api/lobbies/${encodeURIComponent(saved.roomCode)}`);
@@ -162,27 +177,25 @@ async function tryResume() {
       return true;
     }
   } catch {
-    localStorage.removeItem("manaweave.lobby");
+    sessionStorage.removeItem(LOBBY_KEY);
   }
   return false;
 }
 
-function init() {
-  const session = getSession();
-  $("whoami").textContent = session?.name ?? "";
-  $("name-input").value = session?.name ?? "";
+async function joinRoom(code) {
+  const data = await api(`/api/lobbies/${encodeURIComponent(code)}/join`, { method: "POST", body: {} });
+  await enterRoom(data);
+}
 
-  $("save-name").addEventListener("click", async () => {
-    const name = $("name-input").value.trim();
-    if (!name) return;
-    const s = await ensureProfile(name);
-    $("whoami").textContent = s.name;
-  });
+async function init() {
+  const session = requireAuth();
+  if (!session) return;
+  renderAuthHeader();
+  $("whoami").textContent = session.displayName || session.username;
 
   $("create-btn").addEventListener("click", async () => {
     try {
-      await ensureProfile($("name-input").value.trim());
-      const data = await api("/api/lobbies", { method: "POST", body: { name: $("name-input").value.trim() || "Host" } });
+      const data = await api("/api/lobbies", { method: "POST", body: {} });
       await enterRoom(data);
     } catch (err) {
       showError(err.message);
@@ -193,12 +206,7 @@ function init() {
     const code = $("join-code").value.trim().toUpperCase();
     if (!code) return;
     try {
-      await ensureProfile($("name-input").value.trim());
-      const data = await api(`/api/lobbies/${encodeURIComponent(code)}/join`, {
-        method: "POST",
-        body: { name: $("name-input").value.trim() || "Challenger" },
-      });
-      await enterRoom(data);
+      await joinRoom(code);
     } catch (err) {
       showError(err.message);
     }
@@ -227,7 +235,17 @@ function init() {
     if (e.key === "Enter") sendChat();
   });
 
-  void tryResume();
+  // Resumed straight into a room? Otherwise auto-join when arriving via a
+  // second-seat playtest link (?join=CODE).
+  const resumed = await tryResume();
+  const autoJoin = new URLSearchParams(location.search).get("join")?.trim().toUpperCase();
+  if (!resumed && autoJoin) {
+    try {
+      await joinRoom(autoJoin);
+    } catch (err) {
+      showError(err.message);
+    }
+  }
 }
 
 init();

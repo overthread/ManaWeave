@@ -40,6 +40,26 @@ export interface StoredPlayer {
   createdAt: number;
 }
 
+export interface StoredAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  passwordHash: string;
+  createdAt: number;
+}
+
+/**
+ * Account registry behind the login system. Deliberately simple (no password
+ * resets, no email): usernames are unique case-insensitively and passwords are
+ * stored as unsalted sha256 — this is playtest-grade auth, not production.
+ */
+export interface AccountStore {
+  register(input: { username: string; password: string; displayName?: string }): Promise<StoredAccount>;
+  findByUsername(username: string): Promise<StoredAccount | undefined>;
+  findById(id: string): Promise<StoredAccount | undefined>;
+  close(): Promise<void>;
+}
+
 export interface AsyncPlayerDeckStore {
   upsertPlayer(input: { id?: string; name?: string }): Promise<StoredPlayer>;
   getPlayerById(id: string): Promise<StoredPlayer | undefined>;

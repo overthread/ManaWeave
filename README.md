@@ -32,11 +32,23 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Open http://localhost:3000 in two browser profiles (or one normal + one private window):
+The app has **accounts** (playtest-grade login — username + password, no email/reset): decks are saved to your account, so they follow you across browsers and refreshes on the same server.
 
-1. **Build a deck** (`/decks.html`): pick your 4 loom thread colours, add cards (or load a sample), save.
-2. **Lobby** (`/lobby.html`): one player creates a room, the other joins with the code; both pick decks; host starts.
-3. **Battle**: click a hand card → its threads auto-pay (click your threads to change payment — each must match an arrow's colour and direction) → click a free slot for units, or Cast for spells. Attack by clicking the **⚔ badge** on a front unit (it exhausts; clicking the card body never attacks); click back units to move up. Resolve combat damage and card effects with the **Manual effects** panel — either weaver, any time, no restrictions.
+1. **Register** (`/login.html` — the lobby redirects here when a tab has no session).
+2. **Build a deck** (`/decks.html`): pick your 4 loom thread colours, add cards (or load a sample), save. Loading a saved deck and saving again updates it in place.
+3. **Lobby** (`/lobby.html`): create a room, share the code; both weavers pick decks; the host starts.
+4. **Battle**: click a hand card → its threads auto-pay (click your threads to change payment — each must match an arrow's colour and direction) → click a free slot for units, or Cast for spells. Attack by clicking the **⚔ badge** on a front unit (it exhausts; clicking the card body never attacks); click back units to move up. Resolve combat damage and card effects with the **Manual effects** panel — either weaver, any time, no restrictions.
+
+### Playtesting against yourself (same computer, same browser)
+
+Sessions are **per browser tab**, so one browser can host two weavers:
+
+1. In tab 1, log in as your main account and **Create Room**.
+2. Click **“→ open second seat”** in the room panel — it opens a second tab at the login page with the room code pre-wired.
+3. In that tab, register (or log in as) a second weaver; it auto-joins the room as the challenger seat.
+4. Both tabs pick decks; start from tab 1 — each tab opens the battle at its own seat and stays in sync over WebSocket. No second browser profile or private window needed.
+
+(The second seat needs a *different* account — joining with the host's account reclaims the host seat, which is also how refresh recovery works.)
 
 Quick test without decks: `curl -X POST http://localhost:3000/api/games -H "Content-Type: application/json" -d "{}"` → open `/?gameId=<id>&playerId=p1` and `&playerId=p2`.
 
@@ -53,13 +65,14 @@ Quick test without decks: `curl -X POST http://localhost:3000/api/games -H "Cont
 
 - **Server owns the rules.** Clients send intents; the server validates against `listLegalActions` (legality as data — also the anti-cheat seam) and pushes sanitized per-player views over WebSocket. Hidden information (opponent hand/deck) is stripped in exactly one place (`sanitizeStateForPlayer`). One deliberate exception: **manual effect actions** — they carry no turn/legality gating by design (either player, any time); the ruleset still validates their targets and applies every state change.
 - **Game-agnostic shell, game-specific ruleset.** Everything game-specific lives in `server/src/domain/rules/LoomRuleSet.ts` behind the 5-method `RuleSet` interface; swap games by swapping one class.
-- **Layers**: `domain/` (pure rules, zero I/O) → `application/` (use cases + ports) → `infrastructure/` (HTTP routes, WebSocket transport, JSON deck persistence, CSV catalog loader) → `public/` (framework-free ES-module client).
+- **Layers**: `domain/` (pure rules, zero I/O) → `application/` (use cases + ports) → `infrastructure/` (HTTP routes, WebSocket transport, JSON persistence, CSV catalog loader) → `public/` (framework-free ES-module client).
 - **37-card built-in catalog** (`domain/card/CardDefinitions.ts`) across four colours + neutral. Card data can also come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars) — balance in a spreadsheet with zero deploys.
+- **Accounts & login** (playtest-grade by design): `accounts.json` in `DATA_DIR` (unsalted sha256 passwords — explicitly *not* production auth), stateless HMAC bearer tokens (`auth/tokens.ts`, secret persisted as `DATA_DIR/auth-secret`, override with `AUTH_SECRET`). Deck CRUD lives at `/api/decks` scoped to the logged-in account; lobby seats are bound to account ids (`playerAccounts`), so join/refresh recovery matches on *who you are*, never on display names. The browser keeps sessions in `sessionStorage` — per tab — which is what lets one browser sit in both seats for local playtesting.
 - **Decks persist** in `server/data/decks.json` (swap the `AsyncPlayerDeckStore` port for sqlite/postgres without touching callers). Games themselves are in-memory (restart ends live matches — fine for a v1; see hardening notes below).
 
 ### Production hardening backlog (before real players)
 
-Seed + action-log replay persistence, turn timers, disconnect grace, action idempotency/rate limits, real auth (playerKey is a lightweight anti-spoof, not auth).
+Seed + action-log replay persistence, turn timers, disconnect grace, action idempotency/rate limits, salted password hashing + HTTPS + rate-limited login (current auth is deliberately simple: unsalted sha256, bearer tokens with no expiry).
 
 ## Layout
 
@@ -68,8 +81,8 @@ server/
   src/
     domain/            card/, game/, actions/, rules/, services/   (pure logic)
     application/       ports/, use-cases/
-    infrastructure/    http/ (server + routes/), transport/ws.ts,
-                       persistence/JsonDeckStore.ts, lobby/, cards/ (CSV + demo decks)
+    infrastructure/    http/ (server + routes/), auth/tokens.ts, transport/ws.ts,
+                       persistence/ (JsonDeckStore, JsonAccountStore), lobby/, cards/
     test/              domain-test.ts
-  public/              lobby.html, decks.html, index.html + js/ modules + styles.css
+  public/              login.html, lobby.html, decks.html, index.html + js/ modules + styles.css
 ```

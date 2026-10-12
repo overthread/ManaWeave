@@ -4,9 +4,17 @@ import type { RouteHandler } from "./context.js";
 import { createLobby, lobbyView } from "../../lobby/LobbyState.js";
 import { createCardFromDefinition } from "../../../domain/card/CardDefinitions.js";
 import type { ThreadColour } from "../../../domain/card/Card.js";
+import { getAccountFromRequest } from "./authRoutes.js";
 
 function requireKey(lobby: import("../../lobby/LobbyState.js").LobbyState, playerId: string, playerKey: unknown): boolean {
   return typeof playerKey === "string" && lobby.playerSessionKeys[playerId] === playerKey;
+}
+
+/** A seat "belongs" to the account that took it — refresh recovery matches on this, never on display names. */
+function seatForAccount(lobby: import("../../lobby/LobbyState.js").LobbyState, accountId: string): "p1" | "p2" | undefined {
+  if (lobby.playerAccounts.p1 === accountId) return "p1";
+  if (lobby.playerAccounts.p2 === accountId) return "p2";
+  return undefined;
 }
 
 export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, request, response, requestUrl, context }): Promise<boolean> => {
@@ -14,8 +22,12 @@ export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, reques
   let m: RegExpMatchArray | null;
 
   if (method === "POST" && pathname === "/api/lobbies") {
-    const body = await readBody<{ name?: string }>(request);
-    const lobby = createLobby(typeof body.name === "string" ? body.name : "Host");
+    const account = await getAccountFromRequest(request, context);
+    if (!account) {
+      writeJson(response, 401, { error: "Log in to create a room." });
+      return true;
+    }
+    const lobby = createLobby(account.id, account.displayName);
     lobbies.set(lobby.roomCode, lobby);
     writeJson(response, 200, {
       roomCode: lobby.roomCode,
@@ -44,19 +56,24 @@ export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, reques
       writeJson(response, 404, { error: "Room not found." });
       return true;
     }
-    const body = await readBody<{ name?: string }>(request);
-    const name = (typeof body.name === "string" && body.name.trim()) ? body.name.trim().slice(0, 40) : "Challenger";
-    // Same-name join returns the existing seat (refresh recovery).
-    const existing = lobby.players.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    const account = await getAccountFromRequest(request, context);
+    if (!account) {
+      writeJson(response, 401, { error: "Log in to join a room." });
+      return true;
+    }
+    // Same account re-joining returns its existing seat (refresh recovery);
+    // a different account takes the free seat.
+    const existing = seatForAccount(lobby, account.id);
     if (existing) {
-      writeJson(response, 200, { roomCode: lobby.roomCode, playerId: existing.id, playerKey: lobby.playerSessionKeys[existing.id], lobby: lobbyView(lobby) });
+      writeJson(response, 200, { roomCode: lobby.roomCode, playerId: existing, playerKey: lobby.playerSessionKeys[existing], lobby: lobbyView(lobby) });
       return true;
     }
     if (lobby.status === "started" || lobby.players.length >= 2) {
       writeJson(response, 409, { error: "Room is full or already started." });
       return true;
     }
-    lobby.players.push({ id: "p2", name });
+    lobby.players.push({ id: "p2", name: account.displayName });
+    lobby.playerAccounts.p2 = account.id;
     lobby.playerSessionKeys.p2 = crypto.randomBytes(16).toString("hex");
     broadcastLobbyState(lobby.roomCode);
     writeJson(response, 200, { roomCode: lobby.roomCode, playerId: "p2", playerKey: lobby.playerSessionKeys.p2!, lobby: lobbyView(lobby) });
@@ -70,7 +87,7 @@ export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, reques
       writeJson(response, 404, { error: "Room not found." });
       return true;
     }
-    const body = await readBody<{ playerId?: string; playerKey?: string; deckPlayerId?: string; deckId?: string }>(request);
+    const body = await readBody<{ playerId?: string; playerKey?: string; deckId?: string }>(request);
     const seat = body.playerId === "p1" || body.playerId === "p2" ? body.playerId : null;
     if (!seat || !lobby.players.some((p) => p.id === seat)) {
       writeJson(response, 400, { error: "Invalid seat." });
@@ -80,23 +97,28 @@ export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, reques
       writeJson(response, 403, { error: "Bad player key." });
       return true;
     }
+    const account = await getAccountFromRequest(request, context);
+    if (!account || lobby.playerAccounts[seat] !== account.id) {
+      writeJson(response, 403, { error: "That seat belongs to another weaver." });
+      return true;
+    }
     if (lobby.status === "started") {
       writeJson(response, 409, { error: "Match already started." });
       return true;
     }
-    if (!body.deckPlayerId || !body.deckId) {
+    if (!body.deckId) {
       delete lobby.deckSelections[seat];
       broadcastLobbyState(lobby.roomCode);
       writeJson(response, 200, { lobby: lobbyView(lobby) });
       return true;
     }
-    const deck = await deckStore.getDeckByIdForPlayer(body.deckPlayerId, body.deckId);
+    const deck = await deckStore.getDeckByIdForPlayer(account.id, body.deckId);
     if (!deck) {
-      writeJson(response, 404, { error: "Deck not found for that player." });
+      writeJson(response, 404, { error: "Deck not found for that weaver." });
       return true;
     }
     lobby.deckSelections[seat] = {
-      playerProfileId: body.deckPlayerId,
+      playerProfileId: account.id,
       deckId: deck.id,
       deckName: deck.name,
       loom: [...deck.loom],
@@ -116,6 +138,11 @@ export const handleLobbyRoutes: RouteHandler = async ({ method, pathname, reques
     }
     const body = await readBody<{ playerId?: string; playerKey?: string }>(request);
     if (body.playerId !== "p1" || !requireKey(lobby, "p1", body.playerKey)) {
+      writeJson(response, 403, { error: "Only the host can start the match." });
+      return true;
+    }
+    const account = await getAccountFromRequest(request, context);
+    if (!account || lobby.playerAccounts.p1 !== account.id) {
       writeJson(response, 403, { error: "Only the host can start the match." });
       return true;
     }

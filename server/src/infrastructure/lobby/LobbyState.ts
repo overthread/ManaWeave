@@ -20,6 +20,8 @@ export interface LobbyState {
   roomCode: string;
   status: "waiting" | "started";
   players: { id: "p1" | "p2"; name: string }[];
+  /** Seat -> owning account id (seat identity for refresh recovery). */
+  playerAccounts: Partial<Record<"p1" | "p2", string>>;
   playerSessionKeys: Record<string, string>;
   deckSelections: Partial<Record<"p1" | "p2", LobbyDeckSelection>>;
   messages: LobbyChatMessage[];
@@ -39,11 +41,12 @@ export function generatePlayerKey(): string {
   return crypto.randomBytes(16).toString("hex");
 }
 
-export function createLobby(hostName: string): LobbyState {
+export function createLobby(hostAccountId: string, hostName: string): LobbyState {
   return {
     roomCode: generateRoomCode(),
     status: "waiting",
     players: [{ id: "p1", name: hostName || "Host" }],
+    playerAccounts: { p1: hostAccountId },
     playerSessionKeys: { p1: generatePlayerKey() },
     deckSelections: {},
     messages: [],

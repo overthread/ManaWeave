@@ -190,6 +190,8 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 - **Manual actions** — `ManualAction` in `server/src/domain/actions/GameAction.ts`; exempt from turn/legality gating in `BattleEngine`, applied by `applyManualAction`
 - **Cards** — `server/src/domain/card/CardDefinitions.ts` (built-in catalog + cost parser), `Card.ts` (`CostEntry` + `CardEffect` types)
 - **CSV ingestion** — `server/src/infrastructure/cards/csvCatalog.ts`
+- **Accounts & login** — `server/src/infrastructure/persistence/JsonAccountStore.ts` (`DATA_DIR/accounts.json`, unsalted sha256 — playtest-grade, not production auth), `server/src/infrastructure/auth/tokens.ts` (stateless HMAC bearer tokens), routes in `http/routes/authRoutes.ts`; deck CRUD is account-scoped at `/api/decks`, lobby seats bind to accounts in `lobby/LobbyState.ts` (`playerAccounts`)
+- **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link)
 - **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON)
 - **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 71 checks incl. manual actions)
 - **Architecture & running** — see the root `README.md`

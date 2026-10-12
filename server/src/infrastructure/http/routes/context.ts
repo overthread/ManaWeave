@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { ServerResponse } from "node:http";
-import type { AsyncPlayerDeckStore } from "../../../application/ports.js";
+import type { AccountStore, AsyncPlayerDeckStore } from "../../../application/ports.js";
+import type { TokenService } from "../../auth/tokens.js";
 import type { InMemoryGameRepository } from "../../repositories/InMemoryGameRepository.js";
 import type { LoomRuleSet } from "../../../domain/rules/LoomRuleSet.js";
 import type { StartGameUseCase } from "../../../application/use-cases/StartGameUseCase.js";
@@ -11,6 +12,8 @@ import type { ChannelSubscribers } from "../../transport/channels.js";
 export interface RouteContext {
   publicDir: string;
   deckStore: AsyncPlayerDeckStore;
+  accountStore: AccountStore;
+  tokens: TokenService;
   gameRepository: InMemoryGameRepository;
   ruleSet: LoomRuleSet;
   startGame: StartGameUseCase;

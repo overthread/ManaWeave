@@ -1,17 +1,45 @@
-/** Shared client helpers: session, API wrapper, colours. */
+/** Shared client helpers: per-tab session, API wrapper (bearer auth), colours. */
 
 export const SESSION_KEY = "manaweave.session";
+export const LAST_USER_KEY = "manaweave.lastUser";
+export const LOBBY_KEY = "manaweave.lobby";
 
+/**
+ * Sessions live in sessionStorage (per tab) on purpose: two tabs of the same
+ * browser can be two different logged-in weavers, which is what makes
+ * same-computer playtesting work. Refreshing a tab keeps its session.
+ */
 export function getSession() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY)) || null;
+    return JSON.parse(sessionStorage.getItem(SESSION_KEY)) || null;
   } catch {
     return null;
   }
 }
 
 export function setSession(session) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  localStorage.setItem(LAST_USER_KEY, session.username ?? "");
+}
+
+export function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(LOBBY_KEY);
+}
+
+export function getLastUsername() {
+  return localStorage.getItem(LAST_USER_KEY) ?? "";
+}
+
+/** Redirect to the login page unless this tab already has a session. */
+export function requireAuth() {
+  const session = getSession();
+  if (!session) {
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.replace(`/login.html?next=${next}`);
+    return null;
+  }
+  return session;
 }
 
 export function randomId(prefix) {
@@ -19,9 +47,12 @@ export function randomId(prefix) {
 }
 
 export async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers ?? {}) };
+  const session = getSession();
+  if (session?.token) headers.Authorization = `Bearer ${session.token}`;
   const res = await fetch(path, {
     method: opts.method ?? "GET",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   let data = {};
@@ -34,14 +65,35 @@ export async function api(path, opts = {}) {
   return data;
 }
 
-/** Ensure a player profile exists (stored in localStorage for refresh recovery). */
-export async function ensureProfile(preferredName) {
-  let session = getSession();
-  const name = preferredName || session?.name || `Weaver ${Math.floor(Math.random() * 900 + 100)}`;
-  const { player } = await api("/api/players", { method: "POST", body: { id: session?.profileId, name } });
-  session = { profileId: player.id, name: player.displayName };
-  setSession(session);
-  return session;
+export async function logout() {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch {
+    /* stateless tokens — local drop is enough */
+  }
+  clearSession();
+  location.href = "/login.html";
+}
+
+/** Fill a header auth slot: display name + logout link (pages provide #auth-area). */
+export function renderAuthHeader() {
+  const el = document.getElementById("auth-area");
+  if (!el) return;
+  const session = getSession();
+  if (!session) return;
+  el.innerHTML = "";
+  const who = document.createElement("span");
+  who.className = "tag";
+  who.textContent = session.displayName || session.username;
+  const out = document.createElement("a");
+  out.href = "#";
+  out.textContent = "log out";
+  out.style.marginLeft = "10px";
+  out.addEventListener("click", (e) => {
+    e.preventDefault();
+    void logout();
+  });
+  el.append(who, out);
 }
 
 export const COLOURS = {

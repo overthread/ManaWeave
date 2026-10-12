@@ -2,11 +2,11 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # Free plan: no persistent disk. The container filesystem is ephemeral, so
-# saved decks (server/data/decks.json) and in-progress games last only while
-# the instance is up — they're wiped on redeploy and on spin-down (free
-# services sleep after 15 min of inactivity; first request after that takes
-# ~30-60s to cold-start). To persist decks later, upgrade to a paid plan and
-# re-add the disk block + DATA_DIR=/var/data.
+# accounts, saved decks (server/data/accounts.json + decks.json) and the auth
+# token secret all last only while the instance is up — they're wiped on
+# redeploy and on spin-down (free services sleep after 15 min of inactivity;
+# first request after that takes ~30-60s to cold-start). To persist them,
+# upgrade to a paid plan and re-add the disk block + DATA_DIR=/var/data.
 
 services:
   - type: web

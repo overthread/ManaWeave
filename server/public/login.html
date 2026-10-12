@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ManaWeave — Log in</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Mana<span>Weave</span></h1>
+    <span class="tag">weaver's entrance</span>
+  </header>
+
+  <main class="page" style="max-width:420px">
+    <div class="error-banner" id="error-banner"></div>
+    <section class="panel">
+      <h2 style="margin-top:0" id="form-title">Log in</h2>
+      <form id="auth-form">
+        <label class="field-label" for="username">Username</label>
+        <input id="username" autocomplete="username" placeholder="e.g. luna" style="width:100%" />
+        <label class="field-label" for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="anything you like — playtest-grade auth" style="width:100%" />
+        <div id="display-name-row" style="display:none">
+          <label class="field-label" for="display-name">Weaver name (optional — shown at the table)</label>
+          <input id="display-name" autocomplete="nickname" placeholder="defaults to your username" style="width:100%" />
+        </div>
+        <button type="submit" class="primary" id="submit-btn" style="width:100%; margin-top:14px">Log in</button>
+      </form>
+      <p class="muted" style="font-size:13px; margin-bottom:0">
+        <span id="switch-text">No account yet?</span>
+        <a href="#" id="switch-link">Register one</a>
+      </p>
+      <p class="muted" style="font-size:12px; margin-bottom:0">
+        Sessions are per browser tab — to playtest against yourself, log in as a second weaver in another tab of this same browser.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="/js/login.js"></script>
+</body>
+</html>

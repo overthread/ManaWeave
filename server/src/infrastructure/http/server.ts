@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import { JsonDeckStore } from "../persistence/JsonDeckStore.js";
+import { JsonAccountStore } from "../persistence/JsonAccountStore.js";
+import { createTokenService } from "../../infrastructure/auth/tokens.js";
 import { InMemoryGameRepository } from "../repositories/InMemoryGameRepository.js";
 import { InMemoryGameEvents } from "../repositories/InMemoryGameEvents.js";
 import { LoomRuleSet } from "../../domain/rules/LoomRuleSet.js";
@@ -26,6 +28,8 @@ export async function startServer(opts: { baseDir: string; publicDir: string }):
   const dataDir = process.env.DATA_DIR ?? path.join(opts.baseDir, "data");
   await fsp.mkdir(dataDir, { recursive: true });
   const deckStore = new JsonDeckStore(dataDir);
+  const accountStore = new JsonAccountStore(dataDir);
+  const tokens = await createTokenService(dataDir);
 
   const catalog = await loadCardCatalogFromConfiguredCsvs();
   if (catalog.cards.length > 0) setCardDefinitions(catalog.cards);
@@ -61,6 +65,8 @@ export async function startServer(opts: { baseDir: string; publicDir: string }):
   const context: RouteContext = {
     publicDir: opts.publicDir,
     deckStore,
+    accountStore,
+    tokens,
     gameRepository,
     ruleSet,
     startGame,

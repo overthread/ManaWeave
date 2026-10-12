@@ -12,7 +12,7 @@
     <span class="tag">online loom card battler</span>
     <span class="spacer"></span>
     <a href="/decks.html">Deck Builder</a>
-    <span id="whoami" class="tag"></span>
+    <span id="auth-area"></span>
   </header>
 
   <main class="page">
@@ -24,6 +24,7 @@
 
         <h3>Weavers</h3>
         <div id="roster"></div>
+        <div id="playtest-hint" style="margin-top:8px"></div>
 
         <h3 style="margin-top:18px">Start the match</h3>
         <p class="muted" style="font-size:13px">Each seat picks a deck (built in the <a href="/decks.html" target="_blank">Deck Builder</a>). The host starts when both are ready.</p>
@@ -48,12 +49,8 @@
       </section>
 
       <section class="panel" id="join-panel">
-        <h2 style="margin-top:0">Weaver name</h2>
-        <div style="display:flex; gap:8px">
-          <input id="name-input" placeholder="Your name" style="flex:1" />
-          <button id="save-name">Save</button>
-        </div>
-        <h2 style="margin-top:22px">Play</h2>
+        <h2 style="margin-top:0">Play</h2>
+        <p class="muted" style="font-size:13px; margin-top:0">You are <b id="whoami"></b>. To playtest against yourself on this computer, create a room, then use <i>open second seat</i> — a second tab where you log in as another weaver.</p>
         <div style="display:flex; gap:8px; margin-bottom:10px">
           <button id="create-btn" class="primary" style="flex:1">Create Room</button>
         </div>

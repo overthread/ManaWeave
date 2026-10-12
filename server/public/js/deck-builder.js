@@ -1,5 +1,5 @@
 /** Deck builder composition root: loom picker, catalog, deck list, persistence. */
-import { api, COLOURS, ensureProfile, formatCostHtml, formatCostText, getSession, showError } from "./shared.js";
+import { api, COLOURS, requireAuth, renderAuthHeader, formatCostHtml, formatCostText, showError } from "./shared.js";
 
 const DECK_MIN = 20;
 const DECK_MAX = 30;
@@ -22,7 +22,6 @@ const SAMPLES = {
 
 const state = {
   catalog: [],
-  profileId: null,
   loom: ["ember", "ember", "tide", "tide"],
   deck: new Map(), // cardDefId -> quantity
   deckId: null,
@@ -106,6 +105,7 @@ function renderValidation() {
     deckNote.className = "validation-note bad";
   }
   $("save-deck").disabled = notes.length > 0;
+  $("save-deck").textContent = state.deckId ? "Update Deck" : "Save Deck";
 }
 
 function renderCatalog() {
@@ -228,7 +228,7 @@ function renderAll() {
 // ------------------------------------------------------------ persistence
 
 async function refreshSavedDecks() {
-  const { decks } = await api(`/api/players/${encodeURIComponent(state.profileId)}/decks`);
+  const { decks } = await api("/api/decks");
   state.decks = decks;
   const box = $("saved-decks");
   box.innerHTML = "";
@@ -253,7 +253,7 @@ async function refreshSavedDecks() {
     del.textContent = "delete";
     del.addEventListener("click", async () => {
       try {
-        await api(`/api/players/${encodeURIComponent(state.profileId)}/decks/${deck.id}`, { method: "DELETE" });
+        await api(`/api/decks/${deck.id}`, { method: "DELETE" });
         if (state.deckId === deck.id) state.deckId = null;
         await refreshSavedDecks();
       } catch (err) {
@@ -267,14 +267,16 @@ async function refreshSavedDecks() {
 
 async function saveDeck() {
   if (validate().length > 0) return;
+  const body = {
+    name: $("deck-name").value.trim() || "Untitled pattern",
+    loom: state.loom,
+    cards: [...state.deck.entries()].map(([cardDefId, quantity]) => ({ cardDefId, quantity })),
+  };
   try {
-    await api(`/api/players/${encodeURIComponent(state.profileId)}/decks`, {
-      method: "POST",
-      body: {
-        name: $("deck-name").value.trim() || "Untitled pattern",
-        loom: state.loom,
-        cards: [...state.deck.entries()].map(([cardDefId, quantity]) => ({ cardDefId, quantity })),
-      },
+    // Editing a loaded deck updates it; only fresh decks create a new entry.
+    await api(state.deckId ? `/api/decks/${encodeURIComponent(state.deckId)}` : "/api/decks", {
+      method: state.deckId ? "PUT" : "POST",
+      body,
     });
     await refreshSavedDecks();
     showError("");
@@ -297,8 +299,9 @@ function loadSample(key) {
 // ------------------------------------------------------------------ init
 
 async function init() {
-  const session = await ensureProfile(null);
-  state.profileId = session.profileId;
+  const session = requireAuth();
+  if (!session) return;
+  renderAuthHeader();
 
   const { cards } = await api("/api/cards/catalog");
   state.catalog = cards;

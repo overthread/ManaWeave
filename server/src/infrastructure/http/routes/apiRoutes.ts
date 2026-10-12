@@ -4,6 +4,7 @@ import { listCardDefinitions } from "../../../domain/card/CardDefinitions.js";
 import { createCardFromDefinition } from "../../../domain/card/CardDefinitions.js";
 import type { Card, ThreadColour } from "../../../domain/card/Card.js";
 import { DECK_MAX_SIZE, DECK_MIN_SIZE, LOOM_SIZE, MAX_COPIES_PER_CARD, THREAD_COLOURS } from "../../../domain/rules/deckRules.js";
+import { getAccountFromRequest } from "./authRoutes.js";
 
 export const handleHealthRoutes: RouteHandler = async ({ method, pathname, response }): Promise<boolean> => {
   if (method === "GET" && pathname === "/api/health") {
@@ -19,39 +20,6 @@ export const handleCardRoutes: RouteHandler = async ({ method, pathname, respons
     const categories = [...new Set(cards.map((c) => c.category))];
     writeJson(response, 200, { categories, colours: THREAD_COLOURS, cards });
     return true;
-  }
-  return false;
-};
-
-export const handlePlayerRoutes: RouteHandler = async ({ method, pathname, request, response, context }): Promise<boolean> => {
-  const deckStore = context.deckStore;
-  let m: RegExpMatchArray | null;
-
-  if (method === "POST" && pathname === "/api/players") {
-    const body = await readBody<{ id?: string; name?: string }>(request);
-    const player = await deckStore.upsertPlayer({ id: body.id, name: body.name });
-    writeJson(response, 200, { player });
-    return true;
-  }
-
-  m = pathname.match(/^\/api\/players\/([^/]+)$/);
-  if (m) {
-    const id = decodeURIComponent(m[1]!);
-    if (method === "GET") {
-      const player = await deckStore.getPlayerById(id);
-      if (!player) {
-        writeJson(response, 404, { error: "Player not found." });
-        return true;
-      }
-      writeJson(response, 200, { player });
-      return true;
-    }
-    if (method === "PUT") {
-      const body = await readBody<{ name?: string }>(request);
-      const player = await deckStore.upsertPlayer({ id, name: body.name });
-      writeJson(response, 200, { player });
-      return true;
-    }
   }
   return false;
 };
@@ -99,19 +67,20 @@ async function validateDeckPayload(
   return null;
 }
 
+/** Deck CRUD, scoped to the logged-in account (Bearer token). */
 export const handleDeckRoutes: RouteHandler = async ({ method, pathname, request, response, context }): Promise<boolean> => {
+  if (!pathname.startsWith("/api/decks")) return false;
+  const account = await getAccountFromRequest(request, context);
+  if (!account) {
+    writeJson(response, 401, { error: "Log in to manage decks." });
+    return true;
+  }
   const deckStore = context.deckStore;
   let m: RegExpMatchArray | null;
 
-  m = pathname.match(/^\/api\/players\/([^/]+)\/decks$/);
-  if (m) {
-    const profileId = decodeURIComponent(m[1]!);
-    if (!(await deckStore.getPlayerById(profileId))) {
-      writeJson(response, 404, { error: "Player not found." });
-      return true;
-    }
+  if (pathname === "/api/decks") {
     if (method === "GET") {
-      const decks = await deckStore.listDecksByPlayer(profileId);
+      const decks = await deckStore.listDecksByPlayer(account.id);
       writeJson(response, 200, { decks });
       return true;
     }
@@ -127,17 +96,16 @@ export const handleDeckRoutes: RouteHandler = async ({ method, pathname, request
         writeJson(response, 400, { error: invalid });
         return true;
       }
-      const deck = await deckStore.saveDeck({ playerId: profileId, name: parsed.name, format: parsed.format, loom: parsed.loom, cards: parsed.cards });
+      const deck = await deckStore.saveDeck({ playerId: account.id, name: parsed.name, format: parsed.format, loom: parsed.loom, cards: parsed.cards });
       writeJson(response, 200, { deck });
       return true;
     }
   }
 
-  m = pathname.match(/^\/api\/players\/([^/]+)\/decks\/([^/]+)$/);
+  m = pathname.match(/^\/api\/decks\/([^/]+)$/);
   if (m) {
-    const profileId = decodeURIComponent(m[1]!);
-    const deckId = decodeURIComponent(m[2]!);
-    const deck = await deckStore.getDeckByIdForPlayer(profileId, deckId);
+    const deckId = decodeURIComponent(m[1]!);
+    const deck = await deckStore.getDeckByIdForPlayer(account.id, deckId);
     if (!deck) {
       writeJson(response, 404, { error: "Deck not found." });
       return true;
@@ -158,12 +126,12 @@ export const handleDeckRoutes: RouteHandler = async ({ method, pathname, request
         writeJson(response, 400, { error: invalid });
         return true;
       }
-      const saved = await deckStore.saveDeck({ playerId: profileId, deckId, name: parsed.name, format: parsed.format, loom: parsed.loom, cards: parsed.cards });
+      const saved = await deckStore.saveDeck({ playerId: account.id, deckId, name: parsed.name, format: parsed.format, loom: parsed.loom, cards: parsed.cards });
       writeJson(response, 200, { deck: saved });
       return true;
     }
     if (method === "DELETE") {
-      const ok = await deckStore.deleteDeck(profileId, deckId);
+      const ok = await deckStore.deleteDeck(account.id, deckId);
       writeJson(response, ok ? 200 : 404, ok ? { ok: true } : { error: "Deck not found." });
       return true;
     }
