@@ -307,6 +307,61 @@ console.log("\n— manual actions: either weaver, any time, no restrictions —"
     engine.submitAction(over, { type: "manual_action", gameId: over.gameId, playerId: "p1", effect: { kind: "draw", amount: 1 }, targetPlayerId: "p1" }));
 }
 
+console.log("\n— manual zone moves, deck peek & shuffle —");
+{
+  const state = newGame(); // p1's turn
+
+  // move_card: hand -> discard
+  const handCard = state.players.p1!.hand[0]!;
+  const n1 = engine.submitAction(state, { type: "manual_action", gameId: state.gameId, playerId: "p1", effect: { kind: "move_card", zone: "graveyard" }, targetCardId: handCard.id });
+  check("move_card sends a hand card to discard", !n1.players.p1!.hand.some((c) => c.id === handCard.id) && n1.players.p1!.graveyard.some((c) => c.id === handCard.id));
+
+  // move_card: discard -> deck bottom (deck top = index 0)
+  const deckLen = n1.players.p1!.deck.length;
+  const n2 = engine.submitAction(n1, { type: "manual_action", gameId: n1.gameId, playerId: "p1", effect: { kind: "move_card", zone: "deck", position: "bottom" }, targetCardId: handCard.id });
+  check("move_card recycles discard to deck bottom", n2.players.p1!.graveyard.length === 0 && n2.players.p1!.deck.length === deckLen + 1 && n2.players.p1!.deck[n2.players.p1!.deck.length - 1]!.id === handCard.id);
+
+  // move_card: battlefield -> purge, fired by the non-active weaver
+  const unit = createCardFromDefinition("sapling_warden", "p1-mv");
+  unit.metadata.lane = 0;
+  unit.metadata.row = "front";
+  unit.metadata.owner = "p1";
+  unit.metadata.healthRemaining = 3;
+  n2.players.p1!.battlefield = [unit];
+  const n3 = engine.submitAction(n2, { type: "manual_action", gameId: n2.gameId, playerId: "p2", effect: { kind: "move_card", zone: "exile" }, targetCardId: unit.id });
+  check("move_card can exile a battlefield unit (either weaver)", n3.players.p1!.battlefield.length === 0 && n3.players.p1!.exile.some((c) => c.id === unit.id));
+
+  expectThrow("move_card rejects a bogus zone", () =>
+    engine.submitAction(n3, { type: "manual_action", gameId: n3.gameId, playerId: "p1", effect: { kind: "move_card", zone: "moon" as never }, targetCardId: unit.id }));
+  expectThrow("move_card needs a real card", () =>
+    engine.submitAction(n3, { type: "manual_action", gameId: n3.gameId, playerId: "p1", effect: { kind: "move_card", zone: "hand" }, targetCardId: "nope" }));
+
+  // peek: own deck only, snapshots refresh when the deck changes
+  const top3 = n3.players.p1!.deck.slice(0, 3).map((c) => c.id);
+  const n4 = engine.submitAction(n3, { type: "manual_action", gameId: n3.gameId, playerId: "p1", effect: { kind: "peek_deck", amount: 3 }, targetPlayerId: "p1" });
+  const peek = (n4.metadata.deckPeek as { p1?: { amount: number; ids: string[] } }).p1;
+  check("peek_deck snapshots the top 3", peek?.amount === 3 && JSON.stringify(peek?.ids) === JSON.stringify(top3));
+  expectThrow("peeking the opponent's deck rejected", () =>
+    engine.submitAction(n4, { type: "manual_action", gameId: n4.gameId, playerId: "p1", effect: { kind: "peek_deck", amount: 3 }, targetPlayerId: "p2" }));
+  const n5 = engine.submitAction(n4, { type: "manual_action", gameId: n4.gameId, playerId: "p1", effect: { kind: "draw", amount: 1 }, targetPlayerId: "p1" });
+  const peek2 = (n5.metadata.deckPeek as { p1?: { ids: string[] } }).p1;
+  check("peek refreshes after a draw", JSON.stringify(peek2?.ids) === JSON.stringify([top3[1], top3[2], n5.players.p1!.deck[2]!.id].filter((x): x is string => !!x)));
+
+  const mine = sanitizeStateForPlayer(n4, "p1", ruleSet);
+  const theirs = sanitizeStateForPlayer(n4, "p2", ruleSet);
+  check("deck peek visible only to its owner", mine.players.p1!.deckPeek.length === 3 && theirs.players.p1!.deckPeek.length === 0);
+
+  const n6 = engine.submitAction(n5, { type: "manual_action", gameId: n5.gameId, playerId: "p1", effect: { kind: "shuffle_deck" }, targetPlayerId: "p1" });
+  const peek3 = (n6.metadata.deckPeek as { p1?: { ids: string[] } }).p1;
+  check("shuffle_deck keeps deck size & refreshes the peek", n6.players.p1!.deck.length === n5.players.p1!.deck.length && JSON.stringify(peek3?.ids) === JSON.stringify(n6.players.p1!.deck.slice(0, 3).map((c) => c.id)));
+
+  const n7 = engine.submitAction(n6, { type: "manual_action", gameId: n6.gameId, playerId: "p2", effect: { kind: "exhaust_thread" }, targetThreadId: "p1-thread-2" });
+  check("manual exhaust flips a thread", (n7.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!.find((t) => t.id === "p1-thread-2")!.exhausted);
+
+  check("opponent discard pile is public", mine.players.p2!.graveyard.length === n4.players.p2!.graveyard.length && theirs.players.p1!.graveyard.length === n4.players.p1!.graveyard.length);
+  check("opponent purge pile is public", theirs.players.p1!.exile.length === n4.players.p1!.exile.length);
+}
+
 console.log("\n— win conditions & sanitize —");
 {
   const state = newGame();

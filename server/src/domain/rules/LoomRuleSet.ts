@@ -93,6 +93,27 @@ function parseLog(value: unknown): string[] {
   return value.filter((x): x is string => typeof x === "string");
 }
 
+/**
+ * Private deck peeks: { playerId: { amount, ids } }. Only ever shipped to that
+ * player's own sanitized view; refreshed after every action so it always mirrors
+ * the current deck order (draws/shuffles/moves re-snapshot automatically).
+ */
+export interface DeckPeekMetadata {
+  [playerId: string]: { amount: number; ids: string[] };
+}
+
+export function parseDeckPeeks(value: unknown): DeckPeekMetadata {
+  if (!value || typeof value !== "object") return {};
+  const out: DeckPeekMetadata = {};
+  for (const [pid, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as { amount?: unknown; ids?: unknown };
+    if (typeof e.amount !== "number" || !Array.isArray(e.ids)) continue;
+    out[pid] = { amount: e.amount, ids: e.ids.filter((x): x is string => typeof x === "string") };
+  }
+  return out;
+}
+
 /** Deterministic RNG (mulberry32) with state persisted in metadata. */
 function nextRandom(meta: Record<string, unknown>): number {
   let s = (typeof meta.rngState === "number" ? meta.rngState : Date.now() >>> 0) >>> 0;
@@ -201,8 +222,10 @@ function payableCombos(loom: readonly Thread[], card: Card): Thread[][] {
 
 /** Effect kinds whose manual application targets a battlefield unit. */
 const UNIT_TARGET_KINDS = new Set(["damage_unit", "buff_unit", "return_to_hand", "destroy_unit"]);
-const THREAD_TARGET_KINDS = new Set(["ready_thread", "rotate_thread"]);
-const PLAYER_TARGET_KINDS = new Set(["damage_face", "heal_face", "draw", "purge_deck_top"]);
+const THREAD_TARGET_KINDS = new Set(["ready_thread", "exhaust_thread", "rotate_thread"]);
+const PLAYER_TARGET_KINDS = new Set(["damage_face", "heal_face", "draw", "purge_deck_top", "peek_deck", "shuffle_deck"]);
+/** Targets a card in any zone of either weaver (send-to-area moves). */
+const ANY_CARD_TARGET_KINDS = new Set(["move_card"]);
 const ALL_EFFECT_KINDS = new Set([
   "damage_unit",
   "damage_face",
@@ -210,17 +233,24 @@ const ALL_EFFECT_KINDS = new Set([
   "buff_unit",
   "draw",
   "ready_thread",
+  "exhaust_thread",
   "rotate_thread",
   "return_to_hand",
   "destroy_unit",
   "purge_deck_top",
+  "peek_deck",
+  "shuffle_deck",
+  "move_card",
 ]);
+
+const ZONE_KEYS = ["hand", "deck", "graveyard", "exile"] as const;
+type ZoneKey = (typeof ZONE_KEYS)[number];
 
 // ==================================================================== ruleset
 
 export class LoomRuleSet implements RuleSet {
   readonly id = "manaweave";
-  readonly version = "3.0.0";
+  readonly version = "3.1.0";
 
   // ------------------------------------------------------------- validation
 
@@ -463,6 +493,7 @@ export class LoomRuleSet implements RuleSet {
       default:
         return next;
     }
+    this.refreshDeckPeeks(next);
     this.sweepDeaths(next);
     return next;
   }
@@ -595,7 +626,7 @@ export class LoomRuleSet implements RuleSet {
         case "return_to_hand": {
           const owner = state.players[typeof meta(target).owner === "string" ? (meta(target).owner as string) : action.playerId]!;
           owner.battlefield = owner.battlefield.filter((c) => c.id !== target.id);
-          for (const key of ["lane", "row", "owner", "summonedTurn", "attackedThisTurn", "movedThisTurn", "healthRemaining", "powerBonus"]) delete target.metadata[key];
+          this.stripUnitMarkers(target);
           target.metadata.zone = "hand";
           owner.hand.push(target);
           this.log(state, `⟡ ${actor} pulls ${target.name} back to ${owner.name}'s hand.`);
@@ -615,6 +646,10 @@ export class LoomRuleSet implements RuleSet {
         case "ready_thread":
           thread.exhausted = false;
           this.log(state, `⟡ ${actor} readies a ${thread.colour} thread.`);
+          break;
+        case "exhaust_thread":
+          thread.exhausted = true;
+          this.log(state, `⟡ ${actor} flips a ${thread.colour} thread (exhausted).`);
           break;
         case "rotate_thread": {
           if (action.targetDirection !== "cw" && action.targetDirection !== "ccw") throw new GameRuleViolationError("Choose a rotation direction.");
@@ -652,7 +687,52 @@ export class LoomRuleSet implements RuleSet {
           this.log(state, `⟡ ${actor} purges ${purged} card(s) from the top of ${target.name}'s deck.`);
           break;
         }
+        case "peek_deck": {
+          if (target.id !== action.playerId) throw new GameRuleViolationError("You can only look at your own deck.");
+          const peeks = parseDeckPeeks(state.metadata.deckPeek);
+          if (amount <= 0) {
+            delete peeks[target.id];
+            state.metadata.deckPeek = peeks;
+            this.log(state, `⟡ ${actor} looks away from the deck top.`);
+          } else {
+            peeks[target.id] = { amount, ids: target.deck.slice(0, amount).map((c) => c.id) };
+            state.metadata.deckPeek = peeks;
+            this.log(state, `⟡ ${actor} privately looks at the top ${amount} card(s) of their deck.`);
+          }
+          break;
+        }
+        case "shuffle_deck": {
+          for (let i = target.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(nextRandom(state.metadata) * (i + 1));
+            [target.deck[i], target.deck[j]] = [target.deck[j]!, target.deck[i]!];
+          }
+          this.log(state, `⟡ ${actor} shuffles ${target === state.players[action.playerId] ? "their" : `${target.name}'s`} deck.`);
+          break;
+        }
       }
+      return;
+    }
+    if (ANY_CARD_TARGET_KINDS.has(effect.kind)) {
+      // move_card: send the targeted card (any zone, either weaver) to another area.
+      const zone = effect.zone;
+      if (!zone || !ZONE_KEYS.includes(zone)) throw new GameRuleViolationError("Pick a destination area.");
+      const loc = this.findCardAnywhere(state, action.targetCardId);
+      if (!loc) throw new GameRuleViolationError("Card not found in any area.");
+      const owner = loc.player;
+      const card = loc.card;
+      const cardName = card.name;
+      const sourceZone = loc.zone === "graveyard" ? "the discard" : loc.zone === "exile" ? "the purge" : loc.zone === "battlefield" ? "the battlefield" : `their ${loc.zone}`;
+      owner[loc.zone] = owner[loc.zone].filter((c) => c.id !== card.id);
+      if (loc.zone === "battlefield") this.stripUnitMarkers(card);
+      card.metadata.zone = zone;
+      if (zone === "deck") {
+        if (effect.position === "bottom") owner.deck.push(card);
+        else owner.deck.unshift(card);
+      } else {
+        owner[zone].push(card);
+      }
+      const destZone = zone === "graveyard" ? "the discard" : zone === "exile" ? "the purge" : zone === "deck" ? `their deck (${effect.position === "bottom" ? "bottom" : "top"})` : `their hand`;
+      this.log(state, `⟡ ${actor} moves ${cardName} from ${sourceZone} to ${destZone}.`);
       return;
     }
     throw new GameRuleViolationError("Unknown manual effect kind.");
@@ -680,6 +760,54 @@ export class LoomRuleSet implements RuleSet {
       if (hit) return hit;
     }
     return undefined;
+  }
+
+  /** A unit leaving play sheds its board markers wherever it lands next. */
+  private stripUnitMarkers(card: Card): void {
+    for (const key of ["lane", "row", "owner", "summonedTurn", "attackedThisTurn", "movedThisTurn", "healthRemaining", "powerBonus"]) delete card.metadata[key];
+  }
+
+  /** Finds a card in any zone of either weaver (move_card targets). */
+  private findCardAnywhere(
+    state: GameState,
+    cardId: string | undefined,
+  ): { player: PlayerState; zone: "hand" | "deck" | "battlefield" | "graveyard" | "exile"; card: Card } | undefined {
+    if (!cardId) return undefined;
+    for (const p of Object.values(state.players)) {
+      for (const zone of ["hand", "deck", "battlefield", "graveyard", "exile"] as const) {
+        const hit = p[zone].find((c) => c.id === cardId);
+        if (hit) return { player: p, zone, card: hit };
+      }
+    }
+    return undefined;
+  }
+
+  /** Re-snapshot every open deck peek against the current deck order (ids only; replaced wholesale, never mutated). */
+  private refreshDeckPeeks(state: GameState): void {
+    const peeks = parseDeckPeeks(state.metadata.deckPeek);
+    const pids = Object.keys(peeks);
+    if (pids.length === 0) return;
+    const next: DeckPeekMetadata = {};
+    let changed = false;
+    for (const pid of pids) {
+      const entry = peeks[pid]!;
+      const p = state.players[pid];
+      if (!p) {
+        changed = true;
+        continue;
+      }
+      const fresh = p.deck.slice(0, entry.amount).map((c) => c.id);
+      if (fresh.length === 0) {
+        changed = true; // deck ran dry — close the peek
+        continue;
+      }
+      if (fresh.join("\u0000") === entry.ids.join("\u0000")) next[pid] = entry;
+      else {
+        next[pid] = { amount: entry.amount, ids: fresh };
+        changed = true;
+      }
+    }
+    if (changed) state.metadata.deckPeek = next;
   }
 
   // ------------------------------------------------------------- lifecycle

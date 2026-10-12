@@ -4,6 +4,9 @@
  * The exception is `manual_action`: card effects and combat damage are resolved
  * by hand, so manual actions are unrestricted — either player, any time — and
  * are validated only in `applyAction` (targets must exist, amounts must be sane).
+ * The manual vocabulary covers the effect list in Card.ts plus playtest verbs:
+ * exhaust_thread, peek_deck (own deck only), shuffle_deck and move_card
+ * (send a card to hand / deck top / deck bottom / discard / purge).
  */
 
 import type { CardEffect } from "../card/Card.js";

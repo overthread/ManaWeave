@@ -25,6 +25,7 @@
 
       <div class="controls-row" id="controls"></div>
       <div class="casting-bar" id="casting-bar"></div>
+      <div class="peek-panel" id="peek-panel"></div>
 
       <div class="loom-row" id="my-loom"></div>
       <div class="player-bar" id="my-bar"></div>
@@ -32,13 +33,22 @@
     </main>
 
     <aside class="log-panel">
-      <h3>Manual effects</h3>
-      <div class="manual-panel" id="manual-panel"></div>
       <h3>Loom chronicle</h3>
       <div class="log-entries" id="log"></div>
       <button id="concede-btn" class="danger" style="width:100%">Concede</button>
       <a href="/lobby.html" class="muted" style="font-size:12px; text-align:center">leave to lobby</a>
     </aside>
+  </div>
+
+  <div class="zone-viewer" id="zone-viewer">
+    <div class="zone-viewer-box">
+      <div class="zone-viewer-head">
+        <span id="zone-viewer-title"></span>
+        <button id="zone-viewer-close">✕ Close</button>
+      </div>
+      <div class="zone-viewer-grid" id="zone-viewer-grid"></div>
+      <div class="muted" style="font-size:11px">right-click a card to send it elsewhere</div>
+    </div>
   </div>
 
   <div class="winner-overlay" id="winner-overlay">

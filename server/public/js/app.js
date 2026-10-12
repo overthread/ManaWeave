@@ -68,6 +68,11 @@ document.getElementById("concede-btn").addEventListener("click", () => {
   }).catch((err) => showError(err.message));
 });
 
+document.getElementById("zone-viewer-close").addEventListener("click", () => gameView.closeZoneViewer());
+document.getElementById("zone-viewer").addEventListener("click", (e) => {
+  if (e.target.id === "zone-viewer") gameView.closeZoneViewer();
+});
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") gameView.cancelSelections();
 });

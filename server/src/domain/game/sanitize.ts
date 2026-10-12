@@ -7,7 +7,7 @@ import type { GameState } from "./GameState.js";
 import type { GameAction } from "../actions/GameAction.js";
 import type { RuleSet } from "../rules/RuleSet.js";
 import type { Card } from "../card/Card.js";
-import { parseLooms } from "../rules/LoomRuleSet.js";
+import { parseLooms, parseDeckPeeks } from "../rules/LoomRuleSet.js";
 
 export interface PublicCardCostEntry {
   colour: string;
@@ -50,8 +50,10 @@ export interface PublicPlayerView {
   exileCount: number;
   hand: PublicCardView[]; // full for viewer, [] for others
   battlefield: PublicCardView[];
-  graveyard: PublicCardView[]; // full for viewer, [] for others
-  exile: PublicCardView[]; // full for viewer, [] for others
+  graveyard: PublicCardView[]; // discard is public — both weavers see the pile
+  exile: PublicCardView[]; // purge is public — both weavers see the pile
+  /** Top-of-deck cards this viewer is privately looking at (own deck only). */
+  deckPeek: PublicCardView[];
 }
 
 export interface ClientGameView {
@@ -100,6 +102,7 @@ function cardView(card: Card, onBattlefield: boolean): PublicCardView {
 
 export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleSet: RuleSet): ClientGameView {
   const players: Record<string, PublicPlayerView> = {};
+  const peeks = parseDeckPeeks(state.metadata.deckPeek);
   for (const [id, p] of Object.entries(state.players)) {
     const isViewer = id === playerId;
     players[id] = {
@@ -112,8 +115,11 @@ export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleS
       exileCount: p.exile.length,
       hand: isViewer ? p.hand.map((c) => cardView(c, false)) : [],
       battlefield: p.battlefield.map((c) => cardView(c, true)),
-      graveyard: isViewer ? p.graveyard.map((c) => cardView(c, false)) : [],
-      exile: isViewer ? p.exile.map((c) => cardView(c, false)) : [],
+      graveyard: p.graveyard.map((c) => cardView(c, false)),
+      exile: p.exile.map((c) => cardView(c, false)),
+      deckPeek: isViewer
+        ? (peeks[id]?.ids ?? []).map((cid) => p.deck.find((c) => c.id === cid)).filter((c): c is Card => !!c).map((c) => cardView(c, false))
+        : [],
     };
   }
 

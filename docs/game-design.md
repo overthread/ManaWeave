@@ -2,7 +2,7 @@
 
 An online 2-player card battler. **You are a weaver. Four threads hang in your loom — flip them to pay, rotate them to weave, and pull your pattern down over your opponent's pattern until theirs unravels.**
 
-This document is the authoritative rules reference for the current ruleset (`manaweave` v3.0.0, implemented in `server/src/domain/rules/LoomRuleSet.ts`).
+This document is the authoritative rules reference for the current ruleset (`manaweave` v3.1.0, implemented in `server/src/domain/rules/LoomRuleSet.ts`).
 
 ---
 
@@ -65,6 +65,8 @@ Units cannot attack the round they are played unless they have **Quickstride**.
 
 Zones: loom, hand, battlefield, deck, **discard** (graveyard), **purge** (exile).
 
+The **discard and purge piles are public** — both weavers see their contents (each player's bar shows live deck / discard / purge piles; clicking discard or purge opens the pile's cards, and any card in them can be right-clicked to send it elsewhere). Decks and hands stay hidden: the deck renders as a count, and only its owner may peek at it.
+
 **Win** by reducing the enemy weaver to 0 life (both start at 20), or by concession. Each player draws one card per round — empty decks bleed life, eventually lethally.
 
 ## 6. Keywords & effects
@@ -74,11 +76,20 @@ Zones: loom, hand, battlefield, deck, **discard** (graveyard), **purge** (exile)
 
 ### 6.1 Manual resolution
 
-The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it in the discard; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions** (the *Manual effects* panel):
+The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it in the discard; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions**, fired from **right-click context menus** on the board (no panel):
 
-- **Unrestricted by design**: either weaver may fire them at any time, even outside their turn — no turn gating, no legality enumeration.
-- The server validates only that targets exist and amounts are whole numbers (clamped to ±999); every resulting state change (life, unit health, zones, threads, decks) is tracked server-side, and a weaver hitting 0 life still ends the game.
-- The manual verbs cover the full effect vocabulary plus combat damage: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`.
+- **Right-click a unit** (either side): deal damage, adjust power / health (steppers, signed), return to owner's hand, destroy, or send it to another area.
+- **Right-click a hand card**: discard it, or send it to the deck (top/bottom) or purge.
+- **Right-click a thread** (either loom): rotate 90° clockwise or counter-clockwise, ready or exhaust it. During your own weave step the legal weave is offered in the same menu.
+- **Right-click a deck pile** (either side): draw N, purge top N, shuffle — and for your own deck, *look at top N* (a private peek panel; only you ever see those cards, and it refreshes automatically as the deck changes).
+- **Discard / purge piles**: click to view their cards; right-click a card inside to send it to hand, deck top/bottom, or the other pile.
+- **Weaver life**: each player bar has **− / +** buttons (±1 life per click).
+
+Every change to life, unit power and unit health is shown as a **floating delta indicator** (`+2` / `−2`) next to the affected number instead of a silent value swap.
+
+- **Unrestricted by design**: either weaver may fire manual actions at any time, even outside their turn — no turn gating, no legality enumeration. Cross-player moves are legal (you may rotate an enemy thread or send an enemy unit to hand); the only hidden-information rule is that `peek_deck` targets your own deck.
+- The server validates that targets exist and amounts are whole numbers (clamped to ±999); every resulting state change (life, unit health, zones, threads, decks) is tracked server-side, and a weaver hitting 0 life still ends the game.
+- The manual verbs cover the full effect vocabulary plus combat damage and playtest tools: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `exhaust_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`, `peek_deck`, `shuffle_deck`, `move_card` (send any card in any zone to hand / deck top / deck bottom / discard / purge).
 
 ## 7. Deck construction
 
@@ -187,11 +198,13 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 ## 10. Where things live
 
 - **Rules** — `server/src/domain/rules/LoomRuleSet.ts` (payment, combat-as-declaration, manual effect application, turns, deck & loom validation)
-- **Manual actions** — `ManualAction` in `server/src/domain/actions/GameAction.ts`; exempt from turn/legality gating in `BattleEngine`, applied by `applyManualAction`
+- **Manual actions** — `ManualAction` in `server/src/domain/actions/GameAction.ts`; exempt from turn/legality gating in `BattleEngine`, applied by `applyManualAction` (incl. `move_card`, `peek_deck`, `shuffle_deck`, `exhaust_thread`)
+- **Deck peeks** — `DeckPeekMetadata`/`parseDeckPeeks` in `LoomRuleSet.ts`; stored as card ids in `state.metadata.deckPeek`, re-snapshotted after every action, shipped **only** to the peeking player's view in `sanitize.ts`
 - **Cards** — `server/src/domain/card/CardDefinitions.ts` (built-in catalog + cost parser), `Card.ts` (`CostEntry` + `CardEffect` types)
 - **CSV ingestion** — `server/src/infrastructure/cards/csvCatalog.ts`
 - **Accounts & login** — `server/src/infrastructure/persistence/JsonAccountStore.ts` (`DATA_DIR/accounts.json`, unsalted sha256 — playtest-grade, not production auth), `server/src/infrastructure/auth/tokens.ts` (stateless HMAC bearer tokens), routes in `http/routes/authRoutes.ts`; deck CRUD is account-scoped at `/api/decks`, lobby seats bind to accounts in `lobby/LobbyState.ts` (`playerAccounts`)
 - **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link)
-- **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON)
-- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 71 checks incl. manual actions)
+- **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON; discard/purge piles public, deck peeks owner-only)
+- **Context menus** — `server/public/js/context-menu.js` (right-click menus: actions, submenus, −/+ steppers); wired into every card/thread/pile by `game-view.js`, which also renders the zone piles, life −/+ buttons, peek panel, pile viewers and the floating `+N/−N` delta indicators
+- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 84 checks incl. manual actions, zone moves & deck peeks)
 - **Architecture & running** — see the root `README.md`

@@ -1,19 +1,22 @@
 /**
  * Battle screen orchestrator: renders from the last pushed view and owns the
- * interaction flows (casting with thread payment, attacking, moving, weaving,
- * manual effect resolution). Commands are matched against `view.legalActions`
- * exactly — the server has the final say on legality. Manual actions are the
- * exception by design: unrestricted, either weaver, any time.
+ * interaction flows (casting with thread payment, attacking, moving, weaving).
+ * Commands are matched against `view.legalActions` exactly — the server has the
+ * final say on legality.
+ *
+ * Manual resolution has no panel: right-click any card, thread or pile to get a
+ * context menu (rotate threads, adjust unit power/health, deal damage, discard,
+ * deck actions, send cards between areas, adjust life with −/+). Manual actions
+ * are unrestricted by design — either weaver, any time. Stat changes render as
+ * floating +N / −N indicators, computed by diffing consecutive pushed views.
  */
 import { createCardEl } from "./card-ui.js";
 import { createThreadEl } from "./loom-ui.js";
 import { buildBattlefield } from "./battlefield-ui.js";
-import { COLOURS, formatCostHtml, formatCostText } from "./shared.js";
+import { showContextMenu, closeContextMenu } from "./context-menu.js";
+import { COLOURS, ORIENTATION_NAMES, formatCostHtml, formatCostText } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
-
-const UNIT_TOOLS = ["damage_unit", "buff_unit", "return_to_hand", "destroy_unit"];
-const THREAD_TOOLS = ["ready_thread", "rotate_thread"];
 
 export function createGameView(deps) {
   const { submitAction } = deps;
@@ -21,10 +24,8 @@ export function createGameView(deps) {
   let view = null;
   let cast = null; // { cardId, threads: Set<string> } while casting a hand card
   let weavePending = null; // { threadId } while choosing a weave direction
-  let manual = null; // { kind, label } while a manual tool awaits its target
-  let manualRotate = null; // { threadId } while choosing a manual rotation direction
-  const manualInputs = { amount: 1, atk: 1, hp: 1 }; // kept across re-renders
   let snapshotKey = "";
+  let prevStats = null; // { life: {pid}, units: {cardId: {power, health}} } for delta floats
 
   const enemyIdOf = (v) => Object.keys(v.players).find((id) => id !== v.you);
   const myTurn = () => view && view.turnPlayerId === view.you && !view.winnerPlayerId;
@@ -32,8 +33,7 @@ export function createGameView(deps) {
   const actions = (type) => (view?.legalActions ?? []).filter((a) => a.type === type);
   const playActionsFor = (cardId) => actions("play_card").filter((a) => a.cardId === cardId);
   const sortedThreads = (ids) => [...ids].sort().join(",");
-  const manualUnitTargeting = () => !!manual && UNIT_TOOLS.includes(manual.kind);
-  const manualThreadTargeting = () => !!manual && THREAD_TOOLS.includes(manual.kind);
+  const over = () => !!view?.winnerPlayerId;
 
   function findExactPlay(cardId, threads, extra) {
     return playActionsFor(cardId).find(
@@ -63,27 +63,26 @@ export function createGameView(deps) {
     return view.players[view.you]?.hand.find((c) => c.id === cast.cardId) ?? null;
   }
 
-  // ------------------------------------------------------------ flows
+  // ------------------------------------------------------------ submissions
 
   async function submit(partial) {
     await submitAction(partial);
     cast = null;
     weavePending = null;
-    manual = null;
-    manualRotate = null;
   }
 
   async function submitManual(effect, extra = {}) {
+    if (over()) {
+      deps.toast("The weave is finished — no more manual actions.");
+      return;
+    }
     await submit({ type: "manual_action", effect, ...extra });
   }
 
-  /** Arm a manual tool: unit/thread clicks now apply it. Cancels any casting flow. */
-  function armManual(kind, label) {
-    cast = null;
-    weavePending = null;
-    manualRotate = null;
-    manual = { kind, label };
-    render();
+  function moveCard(card, zone, position) {
+    const effect = { kind: "move_card", zone };
+    if (position) effect.position = position;
+    return submitManual(effect, { targetCardId: card.id });
   }
 
   function startCasting(card) {
@@ -91,8 +90,6 @@ export function createGameView(deps) {
     const acts = playActionsFor(card.id);
     if (acts.length === 0) return;
     cast = { cardId: card.id, threads: new Set(autoThreads(card.id)) };
-    manual = null;
-    manualRotate = null;
     render();
   }
 
@@ -128,50 +125,234 @@ export function createGameView(deps) {
     render();
   }
 
+  // ---------------------------------------------------------- context menus
+
+  /** Destinations for "Send to…", minus the zone the card is already in. */
+  function sendToItems(card, fromZone) {
+    const items = [];
+    if (fromZone !== "hand") items.push({ label: "✋ to hand", onClick: () => void moveCard(card, "hand") });
+    if (fromZone !== "deck") {
+      items.push({ label: "▲ deck top", onClick: () => void moveCard(card, "deck", "top") });
+      items.push({ label: "▼ deck bottom", onClick: () => void moveCard(card, "deck", "bottom") });
+    }
+    if (fromZone !== "graveyard") items.push({ label: "🗑 discard", onClick: () => void moveCard(card, "graveyard") });
+    if (fromZone !== "exile") items.push({ label: "☠ purge", onClick: () => void moveCard(card, "exile") });
+    return items;
+  }
+
+  function unitMenu(unit, e) {
+    const target = { targetCardId: unit.id };
+    showContextMenu(e.clientX, e.clientY, [
+      { header: `${unit.name} — ${unit.power}⚔ / ${unit.health}❤` },
+      {
+        type: "stepper", label: "⚔ damage", value: 1, min: 1, max: 99, applyLabel: "Deal",
+        onApply: (n) => void submitManual({ kind: "damage_unit", amount: n }, target),
+      },
+      {
+        type: "stepper", label: "power", value: 1, min: -99, max: 99, applyLabel: "Apply",
+        onApply: (n) => void submitManual({ kind: "buff_unit", atk: n, hp: 0 }, target),
+      },
+      {
+        type: "stepper", label: "health", value: 1, min: -99, max: 99, applyLabel: "Apply",
+        onApply: (n) => void submitManual({ kind: "buff_unit", atk: 0, hp: n }, target),
+      },
+      { label: "⤴ return to owner's hand", onClick: () => void submitManual({ kind: "return_to_hand" }, target) },
+      { label: "☠ destroy", danger: true, hint: "to discard", onClick: () => void submitManual({ kind: "destroy_unit" }, target) },
+      { label: "Send to…", sub: sendToItems(unit, "battlefield") },
+    ]);
+  }
+
+  function handMenu(card, e) {
+    showContextMenu(e.clientX, e.clientY, [
+      { header: card.name },
+      { label: "🗑 Discard", onClick: () => void moveCard(card, "graveyard") },
+      { label: "Send to…", sub: sendToItems(card, "hand") },
+    ]);
+  }
+
+  function threadMenu(t, e) {
+    const items = [
+      { header: `${COLOURS[t.colour]?.label ?? "?"} thread — pointing ${ORIENTATION_NAMES[t.orientation] ?? "up"}` },
+      { label: "↻ rotate clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "cw" }) },
+      { label: "↺ rotate counter-clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "ccw" }) },
+    ];
+    if (t.exhausted) {
+      items.push({ label: "▲ ready (un-flip)", onClick: () => void submitManual({ kind: "ready_thread" }, { targetThreadId: t.id }) });
+    } else {
+      items.push({ label: "▼ exhaust (flip)", onClick: () => void submitManual({ kind: "exhaust_thread" }, { targetThreadId: t.id }) });
+    }
+    // The round's real weave, offered alongside when this thread is legally weaveable.
+    for (const direction of ["cw", "ccw"]) {
+      if (actions("weave_thread").some((a) => a.threadId === t.id && a.direction === direction)) {
+        items.push({
+          label: direction === "cw" ? "Weave ↻ this round" : "Weave ↺ this round",
+          hint: "uses your weave step",
+          onClick: () => void submit({ type: "weave_thread", threadId: t.id, direction }),
+        });
+      }
+    }
+    showContextMenu(e.clientX, e.clientY, items);
+  }
+
+  function deckMenu(playerId, e) {
+    const p = view.players[playerId];
+    const mine = playerId === view.you;
+    const who = mine ? "Your" : `${p.name}'s`;
+    const target = { targetPlayerId: playerId };
+    const items = [
+      { header: `${who} deck — ${p.deckCount} cards` },
+      {
+        type: "stepper", label: mine ? "Draw" : "They draw", value: 1, min: 1, max: 20, applyLabel: "Draw",
+        onApply: (n) => void submitManual({ kind: "draw", amount: n }, target),
+      },
+    ];
+    if (mine) {
+      items.push({
+        type: "stepper", label: "Look at top", value: 3, min: 1, max: 20, applyLabel: "Peek",
+        onApply: (n) => void submitManual({ kind: "peek_deck", amount: n }, target),
+      });
+    }
+    items.push(
+      { label: "🔀 shuffle", onClick: () => void submitManual({ kind: "shuffle_deck" }, target) },
+      {
+        type: "stepper", label: "Purge top", value: 1, min: 1, max: 20, applyLabel: "Purge",
+        onApply: (n) => void submitManual({ kind: "purge_deck_top", amount: n }, target),
+      },
+    );
+    showContextMenu(e.clientX, e.clientY, items);
+  }
+
+  // ------------------------------------------------------------ zone viewer
+
+  let zoneViewer = null; // { playerId, zoneKey } while the pile overlay is open
+
+  function renderZoneViewer() {
+    if (!zoneViewer) {
+      $("zone-viewer").classList.remove("visible");
+      return;
+    }
+    const p = view.players[zoneViewer.playerId];
+    if (!p) {
+      zoneViewer = null;
+      $("zone-viewer").classList.remove("visible");
+      return;
+    }
+    const zoneKey = zoneViewer.zoneKey;
+    const cards = zoneKey === "graveyard" ? p.graveyard : p.exile;
+    const whose = zoneViewer.playerId === view.you ? "Your" : `${p.name}'s`;
+    $("zone-viewer-title").textContent = `${whose} ${zoneKey === "graveyard" ? "discard" : "purge"} — ${cards.length} card${cards.length === 1 ? "" : "s"}`;
+    const grid = $("zone-viewer-grid");
+    grid.replaceChildren();
+    if (cards.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "muted";
+      empty.textContent = "empty";
+      grid.appendChild(empty);
+    }
+    for (const card of cards) {
+      const el = createCardEl(card, {});
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, [{ header: card.name }, { label: "Send to…", sub: sendToItems(card, zoneKey) }]);
+      });
+      grid.appendChild(el);
+    }
+    $("zone-viewer").classList.add("visible");
+  }
+
+  function openZoneViewer(playerId, zoneKey) {
+    if (!view.players[playerId]) return;
+    zoneViewer = { playerId, zoneKey };
+    renderZoneViewer();
+  }
+
   // ------------------------------------------------------------ renders
+
+  function createPile(kind, playerId) {
+    const p = view.players[playerId];
+    const count = kind === "deck" ? p.deckCount : kind === "graveyard" ? p.graveyardCount : p.exileCount;
+    const mine = playerId === view.you;
+    const el = document.createElement("div");
+    el.className = `pile ${kind}${count === 0 ? " empty" : ""}`;
+    const icon = kind === "deck" ? "🂠" : kind === "graveyard" ? "🗑" : "☠";
+    const name = kind === "deck" ? "deck" : kind === "graveyard" ? "discard" : "purge";
+    el.innerHTML = `<span class="pile-icon">${icon}</span><span class="pile-name">${name}</span><span class="pile-count">${count}</span>`;
+    el.title = mine
+      ? `${name}: ${count} cards — left-click for actions, right-click for the menu`
+      : `${p.name}'s ${name}: ${count} cards`;
+    const open = (e) => {
+      if (kind === "deck") deckMenu(playerId, e);
+      else openZoneViewer(playerId, kind);
+    };
+    el.addEventListener("click", (e) => open(e));
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      open(e);
+    });
+    return el;
+  }
 
   function renderBars() {
     const enemyId = enemyIdOf(view);
-    const me = view.players[view.you];
-    const enemy = view.players[enemyId];
 
-    const bar = (p, isMe) => {
+    const bar = (p) => {
       const el = document.createElement("div");
       el.className = "player-bar";
-      const flag = view.turnPlayerId === p.id && !view.winnerPlayerId ? `<span class="turn-flag">● weaving now</span>` : "";
-      el.innerHTML = `
-        <span class="pname">${p.name}${isMe ? " (you)" : ""}</span>
-        <span class="life" title="life">${p.life} ❤</span>
-        ${flag}
-        <span class="spacer" style="flex:1"></span>
-        <span class="zone">hand ${p.handCount}</span>
-        <span class="zone">deck ${p.deckCount}</span>
-        <span class="zone">discard ${p.graveyardCount}</span>
-        <span class="zone">purge ${p.exileCount}</span>`;
+      const name = document.createElement("span");
+      name.className = "pname";
+      name.textContent = `${p.name}${p.id === view.you ? " (you)" : ""}`;
+      el.appendChild(name);
+
+      const lifeBox = document.createElement("span");
+      lifeBox.className = "life-box";
+      const minus = document.createElement("button");
+      minus.className = "life-btn";
+      minus.textContent = "−";
+      minus.title = "lose 1 life";
+      minus.disabled = over();
+      minus.addEventListener("click", () => void submitManual({ kind: "damage_face", amount: 1 }, { targetPlayerId: p.id }));
+      const life = document.createElement("span");
+      life.className = "life";
+      life.title = "life";
+      life.textContent = `${p.life} ❤`;
+      const plus = document.createElement("button");
+      plus.className = "life-btn";
+      plus.textContent = "+";
+      plus.title = "gain 1 life";
+      plus.disabled = over();
+      plus.addEventListener("click", () => void submitManual({ kind: "heal_face", amount: 1 }, { targetPlayerId: p.id }));
+      lifeBox.append(minus, life, plus);
+      el.appendChild(lifeBox);
+
+      if (view.turnPlayerId === p.id && !view.winnerPlayerId) {
+        const flag = document.createElement("span");
+        flag.className = "turn-flag";
+        flag.textContent = "● weaving now";
+        el.appendChild(flag);
+      }
+
+      const spacer = document.createElement("span");
+      spacer.style.flex = "1";
+      el.appendChild(spacer);
+
+      const hand = document.createElement("span");
+      hand.className = "zone";
+      hand.textContent = `hand ${p.handCount}`;
+      el.appendChild(hand);
+      el.appendChild(createPile("deck", p.id));
+      el.appendChild(createPile("graveyard", p.id));
+      el.appendChild(createPile("exile", p.id));
       return el;
     };
 
-    const enemyBar = $("enemy-bar");
-    enemyBar.replaceChildren(bar(enemy, false));
-    const myBar = $("my-bar");
-    myBar.replaceChildren(bar(me, true));
-  }
-
-  async function pickManualThread(t) {
-    if (!manual) return;
-    if (manual.kind === "ready_thread") {
-      await submitManual({ kind: "ready_thread" }, { targetThreadId: t.id });
-    } else if (manual.kind === "rotate_thread") {
-      manualRotate = { threadId: t.id };
-      render();
-    }
+    $("enemy-bar").replaceChildren(bar(view.players[enemyId]));
+    $("my-bar").replaceChildren(bar(view.players[view.you]));
   }
 
   function renderLooms() {
     const enemyId = enemyIdOf(view);
     const myLoom = view.looms[view.you] ?? [];
     const enemyLoom = view.looms[enemyId] ?? [];
-    const threadTool = manualThreadTargeting();
 
     const enemyBox = $("enemy-loom");
     enemyBox.replaceChildren();
@@ -180,8 +361,11 @@ export function createGameView(deps) {
     enemyLabel.textContent = "their loom";
     enemyBox.appendChild(enemyLabel);
     for (const t of enemyLoom) {
-      const el = createThreadEl(t, { clickable: threadTool, highlightTarget: threadTool });
-      if (threadTool) el.addEventListener("click", () => void pickManualThread(t));
+      const el = createThreadEl(t, {});
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        threadMenu(t, e);
+      });
       enemyBox.appendChild(el);
     }
 
@@ -192,22 +376,18 @@ export function createGameView(deps) {
     myLabel.textContent = "your loom";
     myBox.appendChild(myLabel);
 
-    const weaveActive = myTurn() && view.phase === "weave" && !threadTool && actions("weave_thread").length > 0;
-    const payingActive = myTurn() && view.phase === "main" && !!cast && !threadTool;
+    const weaveActive = myTurn() && view.phase === "weave" && actions("weave_thread").length > 0;
+    const payingActive = myTurn() && view.phase === "main" && !!cast;
 
     for (const t of myLoom) {
       const opts = {
-        clickable: (payingActive && !t.exhausted) || weaveActive || threadTool,
+        clickable: (payingActive && !t.exhausted) || weaveActive,
         paymentSelectable: payingActive && !t.exhausted,
         paying: cast?.threads.has(t.id) ?? false,
-        highlightTarget: threadTool || (weaveActive && weavePending?.threadId === t.id),
+        highlightTarget: weaveActive && weavePending?.threadId === t.id,
       };
       const el = createThreadEl(t, opts);
       el.addEventListener("click", async () => {
-        if (threadTool) {
-          await pickManualThread(t);
-          return;
-        }
         if (!myTurn()) return;
         if (payingActive && !t.exhausted) {
           togglePaymentThread(t.id);
@@ -218,6 +398,10 @@ export function createGameView(deps) {
           render();
         }
       });
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        threadMenu(t, e);
+      });
       myBox.appendChild(el);
     }
   }
@@ -226,21 +410,13 @@ export function createGameView(deps) {
     const enemyId = enemyIdOf(view);
     const card = castingCard();
     const isUnitCast = !!card && card.type === "unit";
-    const manualUnit = manualUnitTargeting();
-    // A manual unit tool targets ANY unit on either side; casting no longer
-    // targets (spell effects are resolved by hand after the cast).
-    const unitTargets = new Set(
-      manualUnit ? Object.values(view.players).flatMap((p) => p.battlefield.map((u) => u.id)) : [],
-    );
 
     const grid = buildBattlefield({
       view,
       enemyId,
       myId: view.you,
-      isSlotActive: (lane, row) => !manualUnit && isUnitCast && playActionsFor(cast.cardId).some((a) => a.laneIndex === lane && a.row === row),
-      isUnitTarget: (unit) => unitTargets.has(unit.id),
+      isSlotActive: (lane, row) => isUnitCast && playActionsFor(cast.cardId).some((a) => a.laneIndex === lane && a.row === row),
       isUnitClickable: (unit) => {
-        if (manualUnit) return true;
         if (unit.owner === view.you && myTurn() && view.phase === "main" && !cast) {
           if (unit.row === "back") return actions("move_unit").some((a) => a.cardId === unit.id);
         }
@@ -252,7 +428,6 @@ export function createGameView(deps) {
         myTurn() &&
         view.phase === "main" &&
         !cast &&
-        !manualUnit &&
         actions("attack").some((a) => a.cardId === unit.id),
       onSlotClick: async (lane, row) => {
         if (!cast) return;
@@ -262,18 +437,13 @@ export function createGameView(deps) {
         await submit({ type: "attack", cardId: unit.id });
       },
       onUnitClick: async (unit) => {
-        if (manualUnit) {
-          if (manual.kind === "damage_unit") await submitManual({ kind: "damage_unit", amount: manualInputs.amount }, { targetCardId: unit.id });
-          else if (manual.kind === "buff_unit") await submitManual({ kind: "buff_unit", atk: manualInputs.atk, hp: manualInputs.hp }, { targetCardId: unit.id });
-          else await submitManual({ kind: manual.kind }, { targetCardId: unit.id });
-          return;
-        }
         if (!myTurn() || view.phase !== "main" || cast) return;
         if (unit.owner !== view.you) return;
         if (unit.row === "back" && actions("move_unit").some((a) => a.cardId === unit.id)) {
           await submit({ type: "move_unit", cardId: unit.id });
         }
       },
+      onUnitContext: (unit, _ownerId, e) => unitMenu(unit, e),
     });
     $("battlefield").replaceWith(grid);
   }
@@ -298,6 +468,10 @@ export function createGameView(deps) {
         }
         startCasting(card);
       });
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        handMenu(card, e);
+      });
       hand.appendChild(el);
     }
     if ((me?.hand ?? []).length === 0) {
@@ -321,6 +495,12 @@ export function createGameView(deps) {
     round.textContent = view.winnerPlayerId ? "match finished" : myTurn() ? "your round — act in any order" : `${view.players[view.turnPlayerId]?.name}'s round…`;
     box.appendChild(round);
 
+    const hint = document.createElement("span");
+    hint.className = "turn-note";
+    hint.textContent = "right-click cards, threads & piles for manual actions";
+    hint.title = "Manual actions are unrestricted: either weaver, any time.";
+    box.appendChild(hint);
+
     if (myTurn()) {
       if (view.phase === "main") {
         const weaveBtn = document.createElement("button");
@@ -339,45 +519,6 @@ export function createGameView(deps) {
   function renderCastingBar() {
     const bar = $("casting-bar");
     bar.replaceChildren();
-
-    // Manual rotate tool: a thread is picked, now choose the direction.
-    if (manualRotate) {
-      bar.classList.add("visible");
-      bar.innerHTML = `<span><b>Manual:</b> rotate the thread which way?</span>`;
-      const cw = document.createElement("button");
-      cw.textContent = "↻ clockwise";
-      cw.addEventListener("click", () =>
-        void submitManual({ kind: "rotate_thread" }, { targetThreadId: manualRotate.threadId, targetDirection: "cw" }));
-      const ccw = document.createElement("button");
-      ccw.textContent = "↺ counter-clockwise";
-      ccw.addEventListener("click", () =>
-        void submitManual({ kind: "rotate_thread" }, { targetThreadId: manualRotate.threadId, targetDirection: "ccw" }));
-      const cancel = document.createElement("button");
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => {
-        manualRotate = null;
-        render();
-      });
-      bar.append(cw, ccw, cancel);
-      return;
-    }
-
-    // Armed manual tool waiting for its target.
-    if (manual) {
-      bar.classList.add("visible");
-      const what = manualThreadTargeting() ? "click a thread on either loom" : "click a unit on the battlefield";
-      const amountNote =
-        manual.kind === "damage_unit" ? ` (${manualInputs.amount} damage)` : manual.kind === "buff_unit" ? ` (+${manualInputs.atk}/+${manualInputs.hp})` : "";
-      bar.innerHTML = `<span><b>Manual:</b> ${manual.label}${amountNote} — ${what}.</span>`;
-      const cancel = document.createElement("button");
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => {
-        manual = null;
-        render();
-      });
-      bar.appendChild(cancel);
-      return;
-    }
 
     const card = castingCard();
 
@@ -433,105 +574,35 @@ export function createGameView(deps) {
     bar.appendChild(cancel);
   }
 
-  /** Manual effect tools: unrestricted — either weaver, any time, no turn gating. */
-  function renderManualPanel() {
-    const box = $("manual-panel");
-    box.replaceChildren();
-    const enemyId = enemyIdOf(view);
-    const enemy = view.players[enemyId];
-    const done = !!view.winnerPlayerId;
-
-    const hint = document.createElement("div");
-    hint.className = "manual-hint";
-    hint.textContent = "Resolve card effects & combat by hand — either weaver, any time.";
-    box.appendChild(hint);
-
-    const row = () => {
-      const r = document.createElement("div");
-      r.className = "manual-row";
-      box.appendChild(r);
-      return r;
-    };
-    const num = (key, min) => {
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = String(min);
-      input.step = "1";
-      input.value = String(manualInputs[key]);
-      input.title = key === "amount" ? "amount" : key === "atk" ? "attack bonus (may be negative)" : "health bonus (may be negative)";
-      input.addEventListener("input", () => {
-        manualInputs[key] = Math.trunc(input.valueAsNumber) || 0;
+  /** Private look at the top of your own deck (server-tracked, owner-only). */
+  function renderPeekPanel() {
+    const panel = $("peek-panel");
+    panel.replaceChildren();
+    const peek = view.players[view.you]?.deckPeek ?? [];
+    if (peek.length === 0) {
+      panel.classList.remove("visible");
+      return;
+    }
+    panel.classList.add("visible");
+    const info = document.createElement("span");
+    info.className = "peek-info";
+    info.innerHTML = `<b>Peek:</b> your top ${peek.length} card${peek.length === 1 ? "" : "s"} (top first) — right-click to send one elsewhere.`;
+    panel.appendChild(info);
+    const row = document.createElement("div");
+    row.className = "peek-row";
+    for (const card of peek) {
+      const el = createCardEl(card, {});
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, [{ header: card.name }, { label: "Send to…", sub: sendToItems(card, "deck") }]);
       });
-      return input;
-    };
-    const toolBtn = (label, kind, title) => {
-      const b = document.createElement("button");
-      b.textContent = label;
-      b.title = title;
-      b.disabled = done;
-      if (manual?.kind === kind) b.classList.add("armed");
-      b.addEventListener("click", () => armManual(kind, label));
-      return b;
-    };
-    const amount = () => Math.max(0, manualInputs.amount);
-    const faceBtn = (label, buildEffect, targetPlayerId, title) => {
-      const b = document.createElement("button");
-      b.textContent = label;
-      b.title = title;
-      b.disabled = done;
-      b.addEventListener("click", () => void submitManual(buildEffect(), { targetPlayerId }));
-      return b;
-    };
-    const you = () => view.you;
-
-    let r = row();
-    r.append(document.createTextNode("amount "), num("amount", 1));
-
-    r = row();
-    r.append(toolBtn("⚔ damage unit", "damage_unit", "then click a unit"));
-
-    r = row();
-    r.append(
-      document.createTextNode("💥 dmg weaver "),
-      faceBtn("you", () => ({ kind: "damage_face", amount: amount() }), you(), "deal the amount to your weaver"),
-      faceBtn(enemy?.name ?? "them", () => ({ kind: "damage_face", amount: amount() }), enemyId, "deal the amount to the enemy weaver"),
-    );
-
-    r = row();
-    r.append(
-      document.createTextNode("❤ heal weaver "),
-      faceBtn("you", () => ({ kind: "heal_face", amount: amount() }), you(), "heal your weaver by the amount"),
-      faceBtn(enemy?.name ?? "them", () => ({ kind: "heal_face", amount: amount() }), enemyId, "heal the enemy weaver by the amount"),
-    );
-
-    r = row();
-    r.append(document.createTextNode("✎ alter unit "), num("atk", -99), num("hp", -99), toolBtn("→", "buff_unit", `apply +${manualInputs.atk}/+${manualInputs.hp} to a unit`));
-
-    r = row();
-    r.append(
-      document.createTextNode("🃏 draw "),
-      faceBtn("you", () => ({ kind: "draw", amount: amount() }), you(), "you draw the amount"),
-      faceBtn(enemy?.name ?? "them", () => ({ kind: "draw", amount: amount() }), enemyId, "the enemy weaver draws the amount"),
-    );
-
-    r = row();
-    r.append(
-      document.createTextNode("🗑 purge deck "),
-      faceBtn("you", () => ({ kind: "purge_deck_top", amount: amount() }), you(), "purge the amount from your deck"),
-      faceBtn(enemy?.name ?? "them", () => ({ kind: "purge_deck_top", amount: amount() }), enemyId, "purge the amount from the enemy deck"),
-    );
-
-    r = row();
-    r.append(toolBtn("↑ ready thread", "ready_thread", "then click a thread on either loom"));
-
-    r = row();
-    r.append(toolBtn("⟲ rotate thread", "rotate_thread", "then click a thread, then pick a direction"));
-
-    r = row();
-    r.append(toolBtn("⤴ return to hand", "return_to_hand", "then click a unit"));
-
-    r = row();
-    r.append(toolBtn("☠ destroy unit", "destroy_unit", "then click a unit"));
+      row.appendChild(el);
+    }
+    panel.appendChild(row);
+    const close = document.createElement("button");
+    close.textContent = "Done looking";
+    close.addEventListener("click", () => void submitManual({ kind: "peek_deck", amount: 0 }, { targetPlayerId: view.you }));
+    panel.appendChild(close);
   }
 
   function renderLog() {
@@ -557,6 +628,51 @@ export function createGameView(deps) {
     $("winner-text").textContent = `${winner?.name ?? view.winnerPlayerId} wins the weave`;
   }
 
+  // -------------------------------------------------------- delta indicators
+
+  function snapshotStats(v) {
+    const units = {};
+    for (const p of Object.values(v.players)) {
+      for (const u of p.battlefield) units[u.id] = { power: u.power, health: u.health };
+    }
+    const life = {};
+    for (const p of Object.values(v.players)) life[p.id] = p.life;
+    return { life, units };
+  }
+
+  function diffDeltas(prev, next) {
+    const out = [];
+    for (const [pid, life] of Object.entries(next.life)) {
+      if (prev.life[pid] !== undefined && prev.life[pid] !== life) out.push({ kind: "life", pid, delta: life - prev.life[pid] });
+    }
+    for (const [cardId, s] of Object.entries(next.units)) {
+      const p = prev.units[cardId];
+      if (!p) continue;
+      if (p.power !== s.power) out.push({ kind: "power", cardId, delta: s.power - p.power });
+      if (p.health !== s.health) out.push({ kind: "health", cardId, delta: s.health - p.health });
+    }
+    return out;
+  }
+
+  function spawnDeltas(deltas) {
+    for (const d of deltas) {
+      let anchor = null;
+      if (d.kind === "life") {
+        anchor = document.querySelector(d.pid === view.you ? "#my-bar .life" : "#enemy-bar .life");
+      } else {
+        anchor = document.querySelector(`#battlefield .card[data-card-id="${CSS.escape(d.cardId)}"] .${d.kind === "power" ? "pw" : "hp"}`);
+      }
+      if (!anchor) continue;
+      const f = document.createElement("span");
+      f.className = `delta-float ${d.delta > 0 ? "up" : "down"}`;
+      f.textContent = `${d.delta > 0 ? "+" : ""}${d.delta}`;
+      anchor.appendChild(f);
+      setTimeout(() => f.remove(), 2300);
+    }
+  }
+
+  // ------------------------------------------------------------ lifecycle
+
   function render() {
     if (!view) return;
     $("header-round").textContent = `round ${view.roundNumber} · turn ${view.turnNumber}`;
@@ -566,32 +682,41 @@ export function createGameView(deps) {
     renderBattlefield();
     renderControls();
     renderCastingBar();
-    renderManualPanel();
+    renderPeekPanel();
     renderHand();
     renderLog();
     renderWinner();
+    renderZoneViewer();
   }
 
   function resetSelections() {
     cast = null;
     weavePending = null;
-    manual = null;
-    manualRotate = null;
   }
 
   return {
     render(nextView) {
       const key = `${nextView.gameId}:${nextView.turnNumber}:${nextView.turnPlayerId}:${nextView.phase}:${nextView.winnerPlayerId ?? ""}`;
+      const nextStats = snapshotStats(nextView);
+      const deltas = prevStats ? diffDeltas(prevStats, nextStats) : [];
+      prevStats = nextStats;
       view = nextView;
       if (key !== snapshotKey) {
         snapshotKey = key;
         resetSelections();
       }
+      closeContextMenu(); // a fresh view invalidates any open menu's targets
       render();
+      spawnDeltas(deltas);
     },
     cancelSelections() {
       resetSelections();
+      closeContextMenu();
       render();
+    },
+    closeZoneViewer() {
+      zoneViewer = null;
+      $("zone-viewer").classList.remove("visible");
     },
   };
 }

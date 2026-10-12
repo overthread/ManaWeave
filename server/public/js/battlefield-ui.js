@@ -5,10 +5,11 @@ import { createCardEl } from "./card-ui.js";
  * Builds the battlefield element. Pure render: everything dynamic arrives via
  * `deps` (predicates + click handlers supplied by game-view). Attackable units
  * get a ⚔ badge in their top-left corner — attacking starts ONLY from that
- * badge, never from the card body.
+ * badge, never from the card body. Right-clicking a unit opens its context
+ * menu (manual damage / stat adjustments / send-to-area).
  */
 export function buildBattlefield(deps) {
-  const { view, enemyId, myId, isSlotActive, isUnitTarget, onSlotClick, onUnitClick, canAttackUnit, onAttackClick } = deps;
+  const { view, enemyId, myId, isSlotActive, onSlotClick, onUnitClick, onUnitContext, canAttackUnit, onAttackClick } = deps;
   const grid = document.createElement("div");
   grid.className = "battlefield";
   grid.id = "battlefield";
@@ -34,10 +35,8 @@ export function buildBattlefield(deps) {
       slot.className = "slot";
       const unit = (view.players[zone.playerId]?.battlefield ?? []).find((c) => c.lane === lane && c.row === zone.row);
       if (unit) {
-        const cardEl = createCardEl(unit, {
-          clickable: deps.isUnitClickable?.(unit) || isUnitTarget(unit),
-          highlightTarget: isUnitTarget(unit),
-        });
+        const clickable = deps.isUnitClickable?.(unit) ?? false;
+        const cardEl = createCardEl(unit, { clickable });
         if (canAttackUnit?.(unit)) {
           const btn = document.createElement("button");
           btn.className = "attack-btn";
@@ -50,6 +49,10 @@ export function buildBattlefield(deps) {
           cardEl.appendChild(btn);
         }
         cardEl.addEventListener("click", () => onUnitClick(unit, zone.playerId));
+        cardEl.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          onUnitContext?.(unit, zone.playerId, e);
+        });
         slot.appendChild(cardEl);
       } else {
         const tag = document.createElement("span");

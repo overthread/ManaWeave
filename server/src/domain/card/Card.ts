@@ -30,10 +30,14 @@ export type EffectKind =
   | "buff_unit" // chosen unit gains +atk/+hp (signed; negative hp = debuff)
   | "draw" // draw {amount} cards
   | "ready_thread" // un-exhaust one of your exhausted threads
+  | "exhaust_thread" // exhaust one thread (manual flip)
   | "rotate_thread" // rotate one of your threads 90° (chosen direction)
   | "return_to_hand" // return a chosen enemy unit to its owner's hand
   | "destroy_unit" // destroy a chosen enemy unit with power <= {maxPower}
-  | "purge_deck_top"; // enemy purges {amount} cards from the top of their deck
+  | "purge_deck_top" // enemy purges {amount} cards from the top of their deck
+  | "peek_deck" // privately look at the top {amount} cards of your own deck (0 = dismiss)
+  | "shuffle_deck" // shuffle a weaver's deck
+  | "move_card"; // send the targeted card to {zone} (deck uses {position} top/bottom)
 
 export interface CardEffect {
   readonly kind: EffectKind;
@@ -42,6 +46,10 @@ export interface CardEffect {
   readonly hp?: number;
   readonly maxPower?: number;
   readonly scope?: "any" | "enemy" | "friendly";
+  /** move_card destination */
+  readonly zone?: "hand" | "deck" | "graveyard" | "exile";
+  /** move_card deck insertion (default top) */
+  readonly position?: "top" | "bottom";
 }
 
 export interface CardStats {
