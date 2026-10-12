@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ManaWeave — Lobby</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Mana<span>Weave</span></h1>
+    <span class="tag">online loom card battler</span>
+    <span class="spacer"></span>
+    <a href="/decks.html">Deck Builder</a>
+    <span id="whoami" class="tag"></span>
+  </header>
+
+  <main class="page">
+    <div class="error-banner" id="error-banner"></div>
+    <div class="lobby-grid">
+      <section class="panel" id="room-panel" style="display:none">
+        <h2 style="margin-top:0">Room <code class="room-code" id="room-code"></code></h2>
+        <p class="muted">Share this code — your opponent joins with it from this page.</p>
+
+        <h3>Weavers</h3>
+        <div id="roster"></div>
+
+        <h3 style="margin-top:18px">Start the match</h3>
+        <p class="muted" style="font-size:13px">Each seat picks a deck (built in the <a href="/decks.html" target="_blank">Deck Builder</a>). The host starts when both are ready.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+          <button id="start-btn" class="primary">Start Match</button>
+          <span id="start-hint" class="muted"></span>
+        </div>
+
+        <details class="rules">
+          <summary>How to play (rules summary)</summary>
+          <ul>
+            <li>Each weaver starts at 20 life with <b>4 threads</b> in their Loom, all pointing up. Threads are your mana.</li>
+            <li>To pay for a card, <b>exhaust (flip)</b> threads — at least one must match the card's colour. All your threads ready again at the start of each of your rounds.</li>
+            <li>At the end of your round you may <b>weave</b>: rotate ONE thread 90° left or right. Some cards require an exhausted thread pointing a specific direction — weave ahead to unlock them.</li>
+            <li>Your round: draw a card → move units from back row to front row, play cards, and attack in ANY order → optional weave step → end.</li>
+            <li>Units deploy to any free slot (3 lanes × front/back). Only front-row units attack.</li>
+            <li>Attacking: enemy front unit in the lane fights back (mutual damage); an undefended back-row unit is hit without retaliating; an empty lane hits the weaver directly.</li>
+            <li>Units can't attack the round they're played (unless they have Quickstride).</li>
+            <li>Reduce the enemy weaver to 0 life to win. Drawing from an empty deck frays your pattern (1 life).</li>
+          </ul>
+        </details>
+      </section>
+
+      <section class="panel" id="join-panel">
+        <h2 style="margin-top:0">Weaver name</h2>
+        <div style="display:flex; gap:8px">
+          <input id="name-input" placeholder="Your name" style="flex:1" />
+          <button id="save-name">Save</button>
+        </div>
+        <h2 style="margin-top:22px">Play</h2>
+        <div style="display:flex; gap:8px; margin-bottom:10px">
+          <button id="create-btn" class="primary" style="flex:1">Create Room</button>
+        </div>
+        <div style="display:flex; gap:8px">
+          <input id="join-code" placeholder="ROOM CODE" maxlength="6" style="flex:1; text-transform:uppercase" />
+          <button id="join-btn">Join</button>
+        </div>
+        <div class="chat-box" id="chat-box" style="display:none; margin-top:18px">
+          <h3 style="margin:0">Room chat</h3>
+          <div class="chat-messages" id="chat-messages"></div>
+          <div style="display:flex; gap:8px">
+            <input id="chat-input" placeholder="Message…" style="flex:1" />
+            <button id="chat-send">Send</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="/js/lobby.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ManaWeave — Battle</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Mana<span>Weave</span></h1>
+    <span class="tag" id="header-round"></span>
+    <span class="spacer"></span>
+    <span class="tag" id="header-turn"></span>
+  </header>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <div class="battle-wrap">
+    <main>
+      <div class="player-bar" id="enemy-bar"></div>
+      <div class="loom-row" id="enemy-loom"></div>
+
+      <div class="battlefield" id="battlefield"></div>
+
+      <div class="controls-row" id="controls"></div>
+      <div class="casting-bar" id="casting-bar"></div>
+
+      <div class="loom-row" id="my-loom"></div>
+      <div class="player-bar" id="my-bar"></div>
+      <div class="hand-row" id="hand"></div>
+    </main>
+
+    <aside class="log-panel">
+      <h3>Manual effects</h3>
+      <div class="manual-panel" id="manual-panel"></div>
+      <h3>Loom chronicle</h3>
+      <div class="log-entries" id="log"></div>
+      <button id="concede-btn" class="danger" style="width:100%">Concede</button>
+      <a href="/lobby.html" class="muted" style="font-size:12px; text-align:center">leave to lobby</a>
+    </aside>
+  </div>
+
+  <div class="winner-overlay" id="winner-overlay">
+    <div class="big" id="winner-text"></div>
+    <a href="/lobby.html"><button class="primary">Back to Lobby</button></a>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

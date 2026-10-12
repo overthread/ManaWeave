@@ -1,0 +1,23 @@
+{
+  "name": "manaweave-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ManaWeave - online 2-player loom card battler (server-authoritative)",
+  "scripts": {
+    "dev": "tsx watch src/infrastructure/http/server.ts",
+    "build": "tsc",
+    "start": "node dist/infrastructure/http/server.js",
+    "check": "tsc --noEmit",
+    "test:domain": "tsx src/test/domain-test.ts"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
