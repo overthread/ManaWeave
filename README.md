@@ -73,8 +73,18 @@ Quick test without decks: `curl -X POST http://localhost:3000/api/games -H "Cont
 - **Game-agnostic shell, game-specific ruleset.** Everything game-specific lives in `server/src/domain/rules/LoomRuleSet.ts` behind the 5-method `RuleSet` interface; swap games by swapping one class.
 - **Layers**: `domain/` (pure rules, zero I/O) → `application/` (use cases + ports) → `infrastructure/` (HTTP routes, WebSocket transport, JSON persistence, CSV catalog loader) → `public/` (framework-free ES-module client).
 - **37-card built-in catalog** (`domain/card/CardDefinitions.ts`) across four colours + neutral. Card data can also come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars) — balance in a spreadsheet with zero deploys.
-- **Accounts & login** (playtest-grade by design): `accounts.json` in `DATA_DIR` (unsalted sha256 passwords — explicitly *not* production auth), stateless HMAC bearer tokens (`auth/tokens.ts`, secret persisted as `DATA_DIR/auth-secret`, override with `AUTH_SECRET`). Deck CRUD lives at `/api/decks` scoped to the logged-in account; lobby seats are bound to account ids (`playerAccounts`), so join/refresh recovery matches on *who you are*, never on display names. The browser keeps sessions in `sessionStorage` — per tab — which is what lets one browser sit in both seats for local playtesting.
-- **Decks persist** in `server/data/decks.json` (swap the `AsyncPlayerDeckStore` port for sqlite/postgres without touching callers). Games themselves are in-memory (restart ends live matches — fine for a v1; see hardening notes below).
+- **Accounts & login** (playtest-grade by design): JSON mode stores them in `DATA_DIR/accounts.json` (unsalted sha256 passwords — explicitly *not* production auth), stateless HMAC bearer tokens (`auth/tokens.ts`, secret persisted as `DATA_DIR/auth-secret`, override with `AUTH_SECRET`). Deck CRUD lives at `/api/decks` scoped to the logged-in account; lobby seats are bound to account ids (`playerAccounts`), so join/refresh recovery matches on *who you are*, never on display names. The browser keeps sessions in `sessionStorage` — per tab — which is what lets one browser sit in both seats for local playtesting.
+- **Decks persist** in `server/data/decks.json` locally — and in **Postgres when `DATABASE_URL` is set** (see below). Both live behind the same `AccountStore` / `AsyncPlayerDeckStore` ports (`infrastructure/persistence/`), so switching stores touches nothing else. Games themselves are in-memory (restart ends live matches — fine for a v1; see hardening notes below).
+
+### Keeping data across restarts on Render (free tier)
+
+Render's free plan has an **ephemeral filesystem** — every redeploy and spin-down (it sleeps after 15 min idle) wipes `server/data/`, so accounts, decks and login sessions vanished on each cold start. Fix: point `DATABASE_URL` at a managed Postgres; a **free Neon database** (neon.tech) is enough:
+
+1. Create a project at neon.tech → copy the connection string (`postgresql://user:pass@host/dbname?sslmode=require`).
+2. Render dashboard → ManaWeave → Environment → set `DATABASE_URL` to that string.
+3. Redeploy once. On boot the server creates the tables (`accounts`, `players`, `decks`, `deck_cards`, `app_secrets`) automatically, stores the auth-token secret in Postgres too (so existing logins survive), and logs `[persistence] Postgres (DATABASE_URL)`.
+
+Local dev without `DATABASE_URL` keeps using the JSON files, exactly as before.
 
 ### Production hardening backlog (before real players)
 
@@ -88,7 +98,7 @@ server/
     domain/            card/, game/, actions/, rules/, services/   (pure logic)
     application/       ports/, use-cases/
     infrastructure/    http/ (server + routes/), auth/tokens.ts, transport/ws.ts,
-                       persistence/ (JsonDeckStore, JsonAccountStore), lobby/, cards/
+                       persistence/ (JsonDeckStore, JsonAccountStore, PostgresStores), lobby/, cards/
     test/              domain-test.ts
   public/              login.html, lobby.html, decks.html, index.html + js/ modules + styles.css
 ```

@@ -9,7 +9,10 @@ import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import { JsonDeckStore } from "../persistence/JsonDeckStore.js";
 import { JsonAccountStore } from "../persistence/JsonAccountStore.js";
-import { createTokenService } from "../../infrastructure/auth/tokens.js";
+import { createPostgresStores, loadOrCreatePostgresSecret } from "../persistence/PostgresStores.js";
+import { createTokenService, createTokenServiceFromSecret } from "../../infrastructure/auth/tokens.js";
+import type { AccountStore, AsyncPlayerDeckStore } from "../../application/ports.js";
+import type { TokenService } from "../../infrastructure/auth/tokens.js";
 import { InMemoryGameRepository } from "../repositories/InMemoryGameRepository.js";
 import { InMemoryGameEvents } from "../repositories/InMemoryGameEvents.js";
 import { LoomRuleSet } from "../../domain/rules/LoomRuleSet.js";
@@ -26,10 +29,25 @@ import { lobbyView } from "../lobby/LobbyState.js";
 
 export async function startServer(opts: { baseDir: string; publicDir: string }): Promise<void> {
   const dataDir = process.env.DATA_DIR ?? path.join(opts.baseDir, "data");
-  await fsp.mkdir(dataDir, { recursive: true });
-  const deckStore = new JsonDeckStore(dataDir);
-  const accountStore = new JsonAccountStore(dataDir);
-  const tokens = await createTokenService(dataDir);
+
+  // Postgres (DATABASE_URL) keeps accounts, decks and the auth secret across
+  // restarts on ephemeral hosts; otherwise fall back to JSON files in DATA_DIR.
+  let deckStore: AsyncPlayerDeckStore;
+  let accountStore: AccountStore;
+  let tokens: TokenService;
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (databaseUrl) {
+    const pgStores = await createPostgresStores(databaseUrl);
+    accountStore = pgStores.accountStore;
+    deckStore = pgStores.deckStore;
+    tokens = createTokenServiceFromSecret(await loadOrCreatePostgresSecret(pgStores.pool));
+    console.log("[persistence] Postgres (DATABASE_URL) — accounts, decks and sessions survive restarts.");
+  } else {
+    await fsp.mkdir(dataDir, { recursive: true });
+    deckStore = new JsonDeckStore(dataDir);
+    accountStore = new JsonAccountStore(dataDir);
+    tokens = await createTokenService(dataDir);
+  }
 
   const catalog = await loadCardCatalogFromConfiguredCsvs();
   if (catalog.cards.length > 0) setCardDefinitions(catalog.cards);

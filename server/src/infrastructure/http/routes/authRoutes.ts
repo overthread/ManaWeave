@@ -1,7 +1,7 @@
 import { writeJson, readBody } from "../http-utils.js";
 import type { RouteHandler } from "./context.js";
 import type { StoredAccount } from "../../../application/ports.js";
-import { hashPassword } from "../../persistence/JsonAccountStore.js";
+import { hashPassword } from "../../persistence/passwords.js";
 
 /** Resolve the bearer token on a request to an account, or null. */
 export async function getAccountFromRequest(request: import("node:http").IncomingMessage, context: import("./context.js").RouteContext): Promise<StoredAccount | null> {
@@ -35,6 +35,7 @@ export const handleAuthRoutes: RouteHandler = async ({ method, pathname, request
     try {
       const account = await context.accountStore.register({ username, password, displayName });
       writeJson(response, 200, { account: accountView(account), token: context.tokens.issue(account.id) });
+      return true;
     } catch (err) {
       writeJson(response, 409, { error: err instanceof Error ? err.message : "Registration failed." });
       return true;

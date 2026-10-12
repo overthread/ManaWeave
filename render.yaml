@@ -5,8 +5,14 @@
 # accounts, saved decks (server/data/accounts.json + decks.json) and the auth
 # token secret all last only while the instance is up — they're wiped on
 # redeploy and on spin-down (free services sleep after 15 min of inactivity;
-# first request after that takes ~30-60s to cold-start). To persist them,
-# upgrade to a paid plan and re-add the disk block + DATA_DIR=/var/data.
+# first request after that takes ~30-60s to cold-start).
+#
+# To keep them across restarts, set DATABASE_URL (env var below) to a managed
+# Postgres connection string — a free Neon database works (https://neon.tech):
+# create a project, copy the connection string (postgresql://user:pass@host/
+# dbname?sslmode=require) into the Render dashboard. Tables are created
+# automatically on first boot. Alternatively, upgrade to a paid plan and
+# re-add the disk block + DATA_DIR=/var/data.
 
 services:
   - type: web
@@ -21,6 +27,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.11.1
+      # Postgres connection string (e.g. free Neon database) — persists
+      # accounts, decks and login sessions across restarts. Leave blank to
+      # use the ephemeral server/data JSON files.
+      - key: DATABASE_URL
+        sync: false
       # Optional: publish Google Sheets as CSV to override the built-in catalog.
       # Leave blank in the dashboard to use the 37 built-in cards.
       - key: CARD_CSV_UNITS_URL

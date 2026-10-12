@@ -1,8 +1,8 @@
 /**
  * Stateless bearer tokens: `<accountId>.<hmac>`. No server-side session
  * storage — tokens survive restarts as long as the secret is stable. The
- * secret comes from AUTH_SECRET or is generated once into DATA_DIR so it
- * persists alongside accounts.json on a persistent disk.
+ * secret comes from AUTH_SECRET, from DATA_DIR/auth-secret (JSON mode), or
+ * from Postgres when DATABASE_URL is set (see persistence/PostgresStores.ts).
  */
 
 import { promises as fs } from "node:fs";
@@ -29,8 +29,7 @@ export interface TokenService {
   verify(token: string): string | null;
 }
 
-export async function createTokenService(dataDir: string): Promise<TokenService> {
-  const secret = await loadSecret(dataDir);
+export function createTokenServiceFromSecret(secret: string): TokenService {
   const sign = (accountId: string) => crypto.createHmac("sha256", secret).update(accountId).digest("hex");
   return {
     issue: (accountId) => `${accountId}.${sign(accountId)}`,
@@ -44,4 +43,8 @@ export async function createTokenService(dataDir: string): Promise<TokenService>
       return mac.length === expected.length && crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected)) ? accountId : null;
     },
   };
+}
+
+export async function createTokenService(dataDir: string): Promise<TokenService> {
+  return createTokenServiceFromSecret(await loadSecret(dataDir));
 }

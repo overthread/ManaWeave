@@ -8,13 +8,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import type { AccountStore, StoredAccount } from "../../application/ports.js";
+import { hashPassword } from "./passwords.js";
 
 interface StoreFile {
   accounts: StoredAccount[];
-}
-
-export function hashPassword(username: string, password: string): string {
-  return crypto.createHash("sha256").update(`${username.toLowerCase()}:${password}`).digest("hex");
 }
 
 export class JsonAccountStore implements AccountStore {

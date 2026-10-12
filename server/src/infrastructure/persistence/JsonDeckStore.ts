@@ -18,7 +18,7 @@ interface StoreFile {
 
 const emptyStore = (): StoreFile => ({ players: [], decks: [] });
 
-function sanitizeLoom(value: unknown): ThreadColour[] {
+export function sanitizeLoom(value: unknown): ThreadColour[] {
   if (!Array.isArray(value)) return [];
   const out: ThreadColour[] = [];
   for (const v of value) {
@@ -27,7 +27,7 @@ function sanitizeLoom(value: unknown): ThreadColour[] {
   return out;
 }
 
-function sanitizeCards(value: unknown): StoredDeckCard[] {
+export function sanitizeCards(value: unknown): StoredDeckCard[] {
   if (!Array.isArray(value)) return [];
   const out: StoredDeckCard[] = [];
   for (const v of value) {
