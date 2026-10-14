@@ -33,8 +33,7 @@ services:
       - key: DATABASE_URL
         sync: false
       # Optional: publish Google Sheets as CSV to override the built-in catalog.
+      # A comma-separated list of sheet URLs (e.g. one per colour tab).
       # Leave blank in the dashboard to use the 14 built-in cards.
-      - key: CARD_CSV_UNITS_URL
-        sync: false
-      - key: CARD_CSV_SPELLS_URL
+      - key: CARD_CSV_URL
         sync: false

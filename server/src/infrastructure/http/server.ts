@@ -25,7 +25,7 @@ import { HANDLERS } from "./routes/index.js";
 import type { RouteContext, RouteRequest } from "./routes/context.js";
 import { ChannelSubscribers } from "../transport/channels.js";
 import { attachWebSocketTransport } from "../transport/ws.js";
-import { lobbyView } from "../lobby/LobbyState.js";
+import { lobbyView, settleFinishedGame } from "../lobby/LobbyState.js";
 
 export async function startServer(opts: { baseDir: string; publicDir: string }): Promise<void> {
   const dataDir = process.env.DATA_DIR ?? path.join(opts.baseDir, "data");
@@ -78,7 +78,11 @@ export async function startServer(opts: { baseDir: string; publicDir: string }):
 
   events.bus.on("game_started", (s: { gameId: string }) => void broadcastGameState(s.gameId));
   events.bus.on("action_accepted", (p: { state: { gameId: string } }) => void broadcastGameState(p.state.gameId));
-  events.bus.on("game_finished", (s: { gameId: string }) => void broadcastGameState(s.gameId));
+  events.bus.on("game_finished", (s: { gameId: string }) => {
+    void broadcastGameState(s.gameId);
+    const lobby = settleFinishedGame(lobbies, s.gameId);
+    if (lobby) broadcastLobbyState(lobby.roomCode);
+  });
 
   const context: RouteContext = {
     publicDir: opts.publicDir,

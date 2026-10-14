@@ -533,7 +533,7 @@ console.log("\n— csv catalog mapping —");
     "Starstruck,AZURE,spell,LEFT,,,\"Reaction. Played: Choose a unit, give it -1/-1 this turn.",
     "Constellation 3 - Chart 2.\",common",
   ].join("\n"));
-  const defs = csvRowsToDefinitions("units", rows);
+  const defs = csvRowsToDefinitions(rows);
   const larva = defs.find((d) => d.title === "Riff Larva");
   const starstruck = defs.find((d) => d.title === "Starstruck");
   check("csv: prose effect column becomes the card text", larva?.text === "Doom: Excite.");

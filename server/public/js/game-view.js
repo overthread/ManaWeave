@@ -70,6 +70,10 @@ export function createGameView(deps) {
     await submitAction(partial);
     cast = null;
     weavePending = null;
+    // The WS push for this action may have rendered while `cast` was still set
+    // (same turn+phase = unchanged snapshot key, so it kept the mid-cast UI:
+    // no attack badges / clickable units). Repaint now that it's cleared.
+    render();
   }
 
   async function submitManual(effect, extra = {}) {

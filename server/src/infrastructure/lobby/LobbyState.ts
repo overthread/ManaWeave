@@ -67,6 +67,20 @@ export function lobbyView(lobby: LobbyState): Record<string, unknown> {
   };
 }
 
+/** A finished match returns its room to waiting: seats, deck picks and chat
+ *  stay, so "Back to Lobby" lands both weavers in a rematch-ready room instead
+ *  of bouncing them back into the finished game. */
+export function settleFinishedGame(lobbies: Map<string, LobbyState>, gameId: string): LobbyState | undefined {
+  for (const lobby of lobbies.values()) {
+    if (lobby.gameId === gameId && lobby.status === "started") {
+      lobby.status = "waiting";
+      lobby.gameId = undefined;
+      return lobby;
+    }
+  }
+  return undefined;
+}
+
 export function pushLobbyMessage(lobby: LobbyState, senderId: string, senderName: string, text: string): void {
   const clean = text.trim().slice(0, 240);
   if (!clean) return;

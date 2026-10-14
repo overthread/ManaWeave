@@ -1,9 +1,8 @@
 /**
  * Optional CSV catalog ingestion (e.g. published Google Sheets).
- * One env var per category: CARD_CSV_UNITS_URL, CARD_CSV_SPELLS_URL.
- * Each var accepts multiple URLs separated by commas or whitespace, so a
- * single var can point at several published tabs (e.g. one per colour);
- * each row's `type` column decides unit vs spell regardless of category.
+ * A single CARD_CSV_URL env var holds every sheet URL, separated by commas
+ * or whitespace (e.g. one published tab per colour); each row's `type`
+ * column decides unit vs spell (and the card's category follows it).
  * Sheets /pubhtml URLs are normalized to CSV output. Failures fall back to the
  * built-in catalog with a warning — the game always starts playable.
  */
@@ -95,7 +94,7 @@ function parseEffectsJson(value: string | undefined): CardEffect[] {
   }
 }
 
-export function csvRowsToDefinitions(category: string, rows: string[][]): CardDefinition[] {
+export function csvRowsToDefinitions(rows: string[][]): CardDefinition[] {
   if (rows.length < 2) return [];
   const headers = rows[0]!.map(normalizeHeader);
   const col = (row: string[], ...names: string[]): string => {
@@ -135,7 +134,7 @@ export function csvRowsToDefinitions(category: string, rows: string[][]): CardDe
       // The published draft sheets put rules text in an `effect` column (prose).
       text: col(row, "text", "description", "effect"),
       rarity: col(row, "rarity") || "common",
-      category,
+      category: type === "spell" ? "spells" : "units",
     };
     defs.push(def);
   }
@@ -156,25 +155,20 @@ export async function loadCardCatalogFromConfiguredCsvs(): Promise<{ cards: Card
   const warnings: string[] = [];
   const cards: CardDefinition[] = [];
   const seenIds = new Set<string>();
-  const categories: Array<[string, string | undefined]> = [
-    ["units", process.env.CARD_CSV_UNITS_URL],
-    ["spells", process.env.CARD_CSV_SPELLS_URL],
-  ];
-  for (const [category, urlList] of categories) {
-    if (!urlList) continue;
-    for (const url of urlList.split(/[,\s]+/).filter(Boolean)) {
-      try {
-        const csv = await fetchCsv(url);
-        const defs = csvRowsToDefinitions(category, parseCsv(csv));
-        if (defs.length === 0) throw new Error("no parseable rows");
-        for (const def of defs) {
-          if (seenIds.has(def.id)) continue;
-          seenIds.add(def.id);
-          cards.push(def);
-        }
-      } catch (err) {
-        warnings.push(`CSV category '${category}' failed to load ${url} (${err instanceof Error ? err.message : err}); using fallback.`);
+  const urlList = process.env.CARD_CSV_URL;
+  if (!urlList) return { cards, warnings };
+  for (const url of urlList.split(/[,\s]+/).filter(Boolean)) {
+    try {
+      const csv = await fetchCsv(url);
+      const defs = csvRowsToDefinitions(parseCsv(csv));
+      if (defs.length === 0) throw new Error("no parseable rows");
+      for (const def of defs) {
+        if (seenIds.has(def.id)) continue;
+        seenIds.add(def.id);
+        cards.push(def);
       }
+    } catch (err) {
+      warnings.push(`CSV sheet failed to load ${url} (${err instanceof Error ? err.message : err}); skipped — the built-in catalog applies only if no sheet loads.`);
     }
   }
   return { cards, warnings };
