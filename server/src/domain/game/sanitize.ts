@@ -7,7 +7,7 @@ import type { GameState } from "./GameState.js";
 import type { GameAction } from "../actions/GameAction.js";
 import type { RuleSet } from "../rules/RuleSet.js";
 import type { Card } from "../card/Card.js";
-import { parseLooms, parseDeckPeeks } from "../rules/LoomRuleSet.js";
+import { parseLooms, parseDeckPeeks, parseSpellStack } from "../rules/LoomRuleSet.js";
 
 export interface PublicCardCostEntry {
   colour: string;
@@ -24,6 +24,8 @@ export interface PublicCardView {
   power: number;
   health: number;
   haste: boolean;
+  /** Reaction: the spell may be cast outside your own round (joins the shared spell stack). */
+  reaction?: boolean;
   text: string;
   rarity: string;
   lane?: number;
@@ -60,6 +62,13 @@ export interface PublicPlayerView {
   deckPeek: PublicCardView[];
 }
 
+/** One spell waiting on the shared spell stack, top-first in the view (index 0 resolves next). */
+export interface PublicSpellStackEntry {
+  card: PublicCardView;
+  casterId: string;
+  casterName: string;
+}
+
 export interface ClientGameView {
   gameId: string;
   you: string;
@@ -70,6 +79,8 @@ export interface ClientGameView {
   winnerPlayerId?: string;
   players: Record<string, PublicPlayerView>;
   looms: Record<string, PublicThreadView[]>;
+  /** The shared spell stack, public to both weavers — newest cast first (resolves first). */
+  spellStack: PublicSpellStackEntry[];
   legalActions: readonly GameAction[];
   log: string[];
 }
@@ -91,6 +102,7 @@ function cardView(card: Card, onBattlefield: boolean): PublicCardView {
     power: Math.max(0, power),
     health,
     haste: m.haste === true,
+    reaction: m.reaction === true ? true : undefined,
     text: typeof m.text === "string" ? m.text : "",
     rarity: typeof m.rarity === "string" ? m.rarity : "common",
   };
@@ -134,6 +146,12 @@ export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleS
 
   const log = Array.isArray(state.metadata.log) ? (state.metadata.log as unknown[]).filter((x): x is string => typeof x === "string") : [];
 
+  // The shared spell stack is public — reverse so the view lists the top (newest, resolves first) at index 0.
+  const spellStack: PublicSpellStackEntry[] = parseSpellStack(state.metadata.spellStack)
+    .slice()
+    .reverse()
+    .map((e) => ({ card: cardView(e.card, false), casterId: e.casterId, casterName: state.players[e.casterId]?.name ?? e.casterId }));
+
   return {
     gameId: state.gameId,
     you: playerId,
@@ -144,6 +162,7 @@ export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleS
     winnerPlayerId: state.winnerPlayerId,
     players,
     looms,
+    spellStack,
     legalActions: state.winnerPlayerId ? [] : ruleSet.listLegalActions(state, playerId),
     log: log.slice(-60),
   };

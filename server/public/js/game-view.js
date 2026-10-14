@@ -91,7 +91,9 @@ export function createGameView(deps) {
   }
 
   function startCasting(card) {
-    if (!myTurn() || view.phase !== "main") return;
+    // On your own main step any payable card may be cast; outside your round
+    // only Reaction spells appear in legalActions — both land on the shared stack.
+    if (over()) return;
     const acts = playActionsFor(card.id);
     if (acts.length === 0) return;
     cast = { cardId: card.id, threads: new Set(autoThreads(card.id)) };
@@ -327,6 +329,94 @@ export function createGameView(deps) {
     renderZoneViewer();
   }
 
+  // ------------------------------------------------------------ spell stack
+
+  /**
+   * The shared spell stack: both weavers' cast spells wait here in cast order.
+   * The view lists the top (newest cast, resolves first) at index 0 — rendered
+   * leftmost with a "resolves next" badge. Resolution is by hand: right-click a
+   * stack spell to resolve it, counter it, or send it elsewhere.
+   */
+  function stackMenu(entry, e) {
+    showContextMenu(e.clientX, e.clientY, [
+      { header: `${entry.card.name} — cast by ${entry.casterId === view.you ? "you" : entry.casterName}` },
+      {
+        label: "✔ Resolve → discard",
+        hint: "apply its effect by hand, then it leaves the stack",
+        onClick: () => void submitManual({ kind: "resolve_spell" }, { targetCardId: entry.card.id }),
+      },
+      {
+        label: "✖ Counter → discard",
+        hint: "fizzles without resolving",
+        danger: true,
+        onClick: () => void submitManual({ kind: "resolve_spell", countered: true }, { targetCardId: entry.card.id }),
+      },
+      { label: "Send to…", sub: sendToItems(entry.card, "stack") },
+    ]);
+  }
+
+  const ordinal = (n) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+  };
+
+  function renderSpellStack() {
+    const box = $("spell-stack");
+    box.replaceChildren();
+    const stack = view.spellStack ?? [];
+
+    const head = document.createElement("div");
+    head.className = "spell-stack-head";
+    const title = document.createElement("span");
+    title.className = "spell-stack-title";
+    title.textContent = `✦ spell stack — ${stack.length === 0 ? "empty" : `${stack.length} waiting`}`;
+    head.appendChild(title);
+    if (stack.length > 0) {
+      const order = document.createElement("span");
+      order.className = "spell-stack-order";
+      order.textContent = "newest cast on the left · resolves first";
+      head.appendChild(order);
+      if (!over()) {
+        const btn = document.createElement("button");
+        btn.textContent = "✔ Resolve top";
+        btn.title = "Resolve the top spell: apply its effect by hand, then it goes to its caster's discard";
+        btn.addEventListener("click", () => void submitManual({ kind: "resolve_spell" }, { targetCardId: stack[0].card.id }));
+        head.appendChild(btn);
+      }
+    }
+    box.appendChild(head);
+
+    const row = document.createElement("div");
+    row.className = "spell-stack-row";
+    stack.forEach((entry, i) => {
+      const cell = document.createElement("div");
+      cell.className = "spell-stack-entry";
+      const badge = document.createElement("span");
+      badge.className = `spell-stack-badge${i === 0 ? " next" : ""}`;
+      badge.textContent = i === 0 ? "resolves next" : `resolves ${ordinal(i + 1)}`;
+      cell.appendChild(badge);
+      const caster = document.createElement("span");
+      caster.className = "spell-stack-caster";
+      caster.textContent = `${entry.casterId === view.you ? "you" : entry.casterName} cast${entry.card.reaction ? " · Reaction" : ""}`;
+      cell.appendChild(caster);
+      const el = createCardEl(entry.card, {});
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        stackMenu(entry, e);
+      });
+      cell.appendChild(el);
+      row.appendChild(cell);
+    });
+    if (stack.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "muted spell-stack-empty";
+      empty.textContent = "cast spells wait here — both weavers' spells (and Reactions) share this one stack";
+      row.appendChild(empty);
+    }
+    box.appendChild(row);
+  }
+
   // ------------------------------------------------------------ renders
 
   function createPile(kind, playerId) {
@@ -438,7 +528,8 @@ export function createGameView(deps) {
     myBox.appendChild(myLabel);
 
     const weaveActive = myTurn() && view.phase === "weave" && actions("weave_thread").length > 0;
-    const payingActive = myTurn() && view.phase === "main" && !!cast;
+    // Payment picking follows the cast in progress — including an off-turn Reaction.
+    const payingActive = !!cast;
 
     for (const t of myLoom) {
       const opts = {
@@ -449,7 +540,6 @@ export function createGameView(deps) {
       };
       const el = createThreadEl(t, opts);
       el.addEventListener("click", async () => {
-        if (!myTurn()) return;
         if (payingActive && !t.exhausted) {
           togglePaymentThread(t.id);
           return;
@@ -515,7 +605,9 @@ export function createGameView(deps) {
     const me = view.players[view.you];
     const playable = new Set(actions("play_card").map((a) => a.cardId));
     for (const card of me?.hand ?? []) {
-      const isPlayable = playable.has(card.id) && myTurn() && view.phase === "main";
+      // legalActions only offers payable casts: all cards on your main step,
+      // Reaction spells outside your round.
+      const isPlayable = playable.has(card.id) && !over();
       const el = createCardEl(card, {
         clickable: isPlayable,
         playable: isPlayable,
@@ -561,6 +653,15 @@ export function createGameView(deps) {
     hint.textContent = "right-click cards, threads & piles for manual actions";
     hint.title = "Manual actions are unrestricted: either weaver, any time.";
     box.appendChild(hint);
+
+    // Off-turn with a payable Reaction in hand: an open reaction window.
+    if (!myTurn() && !view.winnerPlayerId && actions("play_card").length > 0) {
+      const pill = document.createElement("span");
+      pill.className = "phase-pill reaction-pill";
+      pill.textContent = "✦ reaction window — you may cast Reactions";
+      pill.title = "Reaction spells can be cast outside your own round; they go on top of the shared spell stack.";
+      box.appendChild(pill);
+    }
 
     if (myTurn()) {
       if (view.phase === "main") {
@@ -610,19 +711,24 @@ export function createGameView(deps) {
 
     bar.classList.add("visible");
     const needsSlot = card.type === "unit";
+    const isReaction = !myTurn();
 
     const need = card.cost?.length ?? 0;
     let hint = `Exhaust threads matching <b>${formatCostHtml(card.cost)}</b> — one per arrow, right colour and direction (a 🧵 Threadling may be sacrificed for any one arrow). `;
-    hint += needsSlot ? "Then click a free slot on your side. " : "Then cast — resolve its effect by hand. ";
+    hint += needsSlot
+      ? "Then click a free slot on your side. "
+      : isReaction
+        ? "Then cast the Reaction — it goes on top of the shared spell stack and resolves first. "
+        : "Then cast — it waits on the spell stack; resolve it by hand from there. ";
 
     const info = document.createElement("span");
-    info.innerHTML = `<b>${card.name}</b> — ${hint}(threads: ${cast.threads.size}/${need})`;
+    info.innerHTML = `<b>${card.name}</b>${isReaction ? " (Reaction)" : ""} — ${hint}(threads: ${cast.threads.size}/${need})`;
     bar.appendChild(info);
 
     if (!needsSlot) {
       const castBtn = document.createElement("button");
       castBtn.className = "primary";
-      castBtn.textContent = "Cast";
+      castBtn.textContent = isReaction ? "Cast Reaction" : "Cast";
       castBtn.addEventListener("click", () => void submitPlay({}));
       bar.appendChild(castBtn);
     }
@@ -741,6 +847,7 @@ export function createGameView(deps) {
     renderBars();
     renderLooms();
     renderBattlefield();
+    renderSpellStack();
     renderControls();
     renderCastingBar();
     renderPeekPanel();

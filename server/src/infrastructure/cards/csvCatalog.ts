@@ -120,6 +120,8 @@ export function csvRowsToDefinitions(rows: string[][]): CardDefinition[] {
     if ((VALID_ORIENTATIONS as readonly string[]).includes(orientationRaw) && cost.length > 0) {
       cost[cost.length - 1] = { ...cost[cost.length - 1]!, orientation: orientationRaw as OrientationName };
     }
+    // The published draft sheets put rules text in an `effect` column (prose).
+    const text = col(row, "text", "description", "effect");
     const def: CardDefinition = {
       id,
       title,
@@ -131,8 +133,9 @@ export function csvRowsToDefinitions(rows: string[][]): CardDefinition[] {
       haste: /^(true|yes|1)$/i.test(col(row, "haste", "quickstride")),
       effects: parseEffectsJson(effectsRaw),
       onPlay: parseEffectsJson(onPlayRaw),
-      // The published draft sheets put rules text in an `effect` column (prose).
-      text: col(row, "text", "description", "effect"),
+      // Explicit `reaction` column wins; otherwise the sheets' prose ("Reaction. …") marks it.
+      reaction: type === "spell" && (/^(true|yes|1)$/i.test(col(row, "reaction")) || /^\s*reaction\b/i.test(text)),
+      text,
       rarity: col(row, "rarity") || "common",
       category: type === "spell" ? "spells" : "units",
     };

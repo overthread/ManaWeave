@@ -93,6 +93,13 @@ function mutableLooms(meta: Record<string, unknown>): LoomsMetadata {
   return looms;
 }
 
+/** Same contract as mutableLooms, for the shared spell stack. */
+function mutableSpellStack(meta: Record<string, unknown>): SpellStackEntry[] {
+  const stack = parseSpellStack(meta.spellStack);
+  meta.spellStack = stack;
+  return stack;
+}
+
 function parseLog(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((x): x is string => typeof x === "string");
@@ -115,6 +122,47 @@ export function parseDeckPeeks(value: unknown): DeckPeekMetadata {
     const e = entry as { amount?: unknown; ids?: unknown };
     if (typeof e.amount !== "number" || !Array.isArray(e.ids)) continue;
     out[pid] = { amount: e.amount, ids: e.ids.filter((x): x is string => typeof x === "string") };
+  }
+  return out;
+}
+
+/**
+ * The shared spell stack — the game's one spell slot. Every cast spell waits
+ * here (both weavers' spells on the same stack) until it is resolved or
+ * countered by hand. Order is bottom-first: the LAST entry is the top of the
+ * stack and resolves first.
+ */
+export interface SpellStackEntry {
+  card: Card;
+  casterId: string;
+}
+
+export function parseSpellStack(value: unknown): SpellStackEntry[] {
+  if (!Array.isArray(value)) return [];
+  const out: SpellStackEntry[] = [];
+  for (const e of value) {
+    if (!e || typeof e !== "object") continue;
+    const entry = e as { card?: unknown; casterId?: unknown };
+    if (!entry.card || typeof entry.card !== "object" || typeof entry.casterId !== "string") continue;
+    const c = entry.card as {
+      id?: unknown;
+      name?: unknown;
+      type?: unknown;
+      stats?: { attack?: unknown; health?: unknown; cost?: unknown };
+      effects?: unknown;
+      metadata?: unknown;
+    };
+    if (typeof c.id !== "string" || typeof c.name !== "string" || (c.type !== "unit" && c.type !== "spell")) continue;
+    const attack = typeof c.stats?.attack === "number" ? c.stats.attack : 0;
+    const health = typeof c.stats?.health === "number" ? c.stats.health : 0;
+    const rawCost = Array.isArray(c.stats?.cost)
+      ? c.stats.cost.filter((x): x is CostEntry => !!x && typeof x === "object" && typeof (x as CostEntry).colour === "string" && typeof (x as CostEntry).orientation === "string")
+      : [];
+    const effects = Array.isArray(c.effects) ? (c.effects as Card["effects"]) : [];
+    out.push({
+      casterId: entry.casterId,
+      card: new Card(c.id, c.name, c.type, { attack, health, cost: rawCost }, effects, { ...((c.metadata as Record<string, unknown>) ?? {}) }),
+    });
   }
   return out;
 }
@@ -233,6 +281,8 @@ const THREAD_TARGET_KINDS = new Set(["ready_thread", "exhaust_thread", "rotate_t
 const PLAYER_TARGET_KINDS = new Set(["damage_face", "heal_face", "draw", "purge_deck_top", "peek_deck", "shuffle_deck", "add_token"]);
 /** Targets a card in any zone of either weaver (send-to-area moves). */
 const ANY_CARD_TARGET_KINDS = new Set(["move_card"]);
+/** Targets a spell waiting on the shared stack (resolve / counter). */
+const STACK_TARGET_KINDS = new Set(["resolve_spell"]);
 const ALL_EFFECT_KINDS = new Set([
   "damage_unit",
   "damage_face",
@@ -253,6 +303,7 @@ const ALL_EFFECT_KINDS = new Set([
   "excite_thread",
   "unleash_thread",
   "sacrifice_threadling",
+  "resolve_spell",
 ]);
 
 const ZONE_KEYS = ["hand", "deck", "graveyard", "exile"] as const;
@@ -276,7 +327,7 @@ function nextSuffix(ids: readonly string[], prefix: string): number {
 
 export class LoomRuleSet implements RuleSet {
   readonly id = "manaweave";
-  readonly version = "3.1.0";
+  readonly version = "3.2.0";
 
   // ------------------------------------------------------------- validation
 
@@ -408,10 +459,22 @@ export class LoomRuleSet implements RuleSet {
     const actions: GameAction[] = [];
     const base = { gameId: state.gameId, playerId };
     actions.push({ ...base, type: "concede" });
-    if (state.winnerPlayerId || playerId !== state.turnPlayerId) return actions;
+    if (state.winnerPlayerId) return actions;
 
     const me = state.players[playerId]!;
     const loom = parseLooms(state.metadata.looms)?.[playerId] ?? [];
+
+    if (playerId !== state.turnPlayerId) {
+      // Reaction: the spell may be played outside your own round — it pays
+      // threads like any cast and waits on the shared spell stack (topmost).
+      for (const card of me.hand) {
+        if (card.type !== "spell" || meta(card).reaction !== true) continue;
+        for (const combo of payableCombos(loom, card)) {
+          actions.push({ ...base, type: "play_card", cardId: card.id, threadIds: combo.map((t) => t.id), laneIndex: null, row: null });
+        }
+      }
+      return actions;
+    }
 
     if (state.phase === "main") {
       // Move back-row units forward (same lane, front slot free, once per round).
@@ -579,9 +642,17 @@ export class LoomRuleSet implements RuleSet {
       me.battlefield.push(card);
       this.log(state, `${me.name} weaves ${cardName} into lane ${lane + 1} (${row} row)${sacrificed > 0 ? ` — sacrifices ${sacrificed} Threadling${sacrificed > 1 ? "s" : ""}` : ""}.`);
     } else {
-      this.log(state, `${me.name} casts ${cardName} — resolve its effect by hand${sacrificed > 0 ? ` (sacrifices ${sacrificed} Threadling${sacrificed > 1 ? "s" : ""})` : ""}.`);
-      card.metadata.zone = "graveyard";
-      me.graveyard.push(card);
+      // Spells wait on the shared spell stack — both weavers' casts stack up in
+      // order (reactions land on top) and are resolved or countered by hand.
+      const isReaction = action.playerId !== state.turnPlayerId;
+      card.metadata.zone = "stack";
+      card.metadata.owner = action.playerId;
+      const stack = mutableSpellStack(state.metadata);
+      stack.push({ card, casterId: action.playerId });
+      this.log(
+        state,
+        `${me.name} casts ${cardName}${isReaction ? " as a Reaction" : ""} onto the spell stack (position ${stack.length} of ${stack.length} — top resolves first)${sacrificed > 0 ? ` — sacrifices ${sacrificed} Threadling${sacrificed > 1 ? "s" : ""}` : ""} — resolve its effect by hand, then send it to the discard.`,
+      );
     }
   }
 
@@ -789,6 +860,27 @@ export class LoomRuleSet implements RuleSet {
       }
       return;
     }
+    if (STACK_TARGET_KINDS.has(effect.kind)) {
+      // resolve_spell: the spell leaves the shared stack for its caster's
+      // discard — resolved (apply its effect by hand) or countered (fizzle).
+      const stack = mutableSpellStack(state.metadata);
+      const index = stack.findIndex((e) => e.card.id === action.targetCardId);
+      if (index < 0) throw new GameRuleViolationError("Pick a spell waiting on the stack.");
+      const entry = stack[index]!;
+      stack.splice(index, 1);
+      const caster = state.players[entry.casterId]!;
+      this.stripUnitMarkers(entry.card);
+      entry.card.metadata.zone = "graveyard";
+      caster.graveyard.push(entry.card);
+      const depth = stack.length - index; // 1 = it was the top
+      const position = depth === 1 ? "the top of the stack" : `the stack (${depth} spells were above it)`;
+      if (effect.countered === true) {
+        this.log(state, `⟡ ${actor} counters ${entry.card.name} from ${position} — it fizzles into ${caster.name}'s discard unresolved.`);
+      } else {
+        this.log(state, `⟡ ${actor} resolves ${entry.card.name} from ${position} — apply its effect, then it rests in ${caster.name}'s discard.`);
+      }
+      return;
+    }
     if (ANY_CARD_TARGET_KINDS.has(effect.kind)) {
       // move_card: send the targeted card (any zone, either weaver) to another area.
       const zone = effect.zone;
@@ -798,8 +890,14 @@ export class LoomRuleSet implements RuleSet {
       const owner = loc.player;
       const card = loc.card;
       const cardName = card.name;
-      const sourceZone = loc.zone === "graveyard" ? "the discard" : loc.zone === "exile" ? "the purge" : loc.zone === "battlefield" ? "the battlefield" : `their ${loc.zone}`;
-      owner[loc.zone] = owner[loc.zone].filter((c) => c.id !== card.id);
+      const sourceZone = loc.zone === "graveyard" ? "the discard" : loc.zone === "exile" ? "the purge" : loc.zone === "battlefield" ? "the battlefield" : loc.zone === "stack" ? "the spell stack" : `their ${loc.zone}`;
+      if (loc.zone === "stack") {
+        // Leaving the shared stack by hand: pull the entry out of metadata, not a player zone.
+        const stack = mutableSpellStack(state.metadata);
+        stack.splice(stack.findIndex((e) => e.card.id === card.id), 1);
+      } else {
+        owner[loc.zone] = owner[loc.zone].filter((c) => c.id !== card.id);
+      }
       if (loc.zone === "battlefield") this.stripUnitMarkers(card);
       card.metadata.zone = zone;
       if (zone === "deck") {
@@ -924,16 +1022,22 @@ export class LoomRuleSet implements RuleSet {
     for (const key of ["lane", "row", "owner", "summonedTurn", "attackedThisTurn", "movedThisTurn", "healthRemaining", "powerBonus", "animatedThread"]) delete card.metadata[key];
   }
 
-  /** Finds a card in any zone of either weaver (move_card targets). */
+  /** Finds a card in any zone of either weaver or on the shared spell stack (move_card targets). */
   private findCardAnywhere(
     state: GameState,
     cardId: string | undefined,
-  ): { player: PlayerState; zone: "hand" | "deck" | "battlefield" | "graveyard" | "exile"; card: Card } | undefined {
+  ): { player: PlayerState; zone: "hand" | "deck" | "battlefield" | "graveyard" | "exile" | "stack"; card: Card } | undefined {
     if (!cardId) return undefined;
     for (const p of Object.values(state.players)) {
       for (const zone of ["hand", "deck", "battlefield", "graveyard", "exile"] as const) {
         const hit = p[zone].find((c) => c.id === cardId);
         if (hit) return { player: p, zone, card: hit };
+      }
+    }
+    for (const entry of parseSpellStack(state.metadata.spellStack)) {
+      if (entry.card.id === cardId) {
+        const caster = state.players[entry.casterId]!;
+        return { player: caster, zone: "stack", card: entry.card };
       }
     }
     return undefined;
@@ -1068,12 +1172,14 @@ export class LoomRuleSet implements RuleSet {
     for (const [pid, threads] of Object.entries(looms ?? {})) {
       clonedLooms[pid] = threads.map((t) => ({ ...t }));
     }
+    const clonedStack = parseSpellStack(state.metadata.spellStack).map((e) => ({ casterId: e.casterId, card: e.card.clone() }));
     return {
       ...state,
       players,
       metadata: {
         ...state.metadata,
         looms: clonedLooms,
+        spellStack: clonedStack,
         weaved: { ...parseFlags(state.metadata.weaved) },
         log: [...parseLog(state.metadata.log)],
       },

@@ -26,6 +26,8 @@ export interface CardDefinition {
   readonly haste?: boolean;
   readonly effects?: readonly CardEffect[];
   readonly onPlay?: readonly CardEffect[];
+  /** Reaction: the spell may be cast outside your own round (it joins the shared spell stack). */
+  readonly reaction?: boolean;
   readonly text?: string;
   readonly rarity?: string;
   readonly category: string;
@@ -80,7 +82,7 @@ const s = (
   colour: ThreadColour,
   cost: string,
   effects: readonly CardEffect[],
-  extra: { text?: string; rarity?: string } = {},
+  extra: { text?: string; rarity?: string; reaction?: boolean } = {},
 ): CardDefinition => ({
   id,
   title,
@@ -110,9 +112,9 @@ export const FALLBACK_CATALOG: readonly CardDefinition[] = [
   u("riff_crawler", "Riff Crawler", "crimson", "crimson:right", 1, 1, { text: "Played: Unleash DOWN -> Draw 1.", rarity: "common" }),
   u("riff_shrieker", "Riff Shrieker", "crimson", "crimson:right crimson:up", 2, 2, { text: "Played: Unleash UP -> Gain +2/+2.", rarity: "common" }),
   u("riff_hunter", "Riff Hunter", "crimson", "crimson:right crimson:right", 3, 3, { text: "Hunt. Kill: Excite.", rarity: "uncommon" }),
-  s("wyrmbite", "Wyrmbite", "crimson", "crimson:left", [], { text: "Reaction. Played: Deal 2 damage to any front-row unit. Unleash LEFT to draw 1.", rarity: "common" }),
+  s("wyrmbite", "Wyrmbite", "crimson", "crimson:left", [], { text: "Reaction. Played: Deal 2 damage to any front-row unit. Unleash LEFT to draw 1.", rarity: "common", reaction: true }),
   s("hunting_extincts", "Hunting Extincts", "crimson", "crimson:left", [], { text: "Played: Grant a friendly unit Hunt and +1/+0 this round. Excite.", rarity: "uncommon" }),
-  s("enrage", "Enrage", "crimson", "crimson:left crimson:up", [], { text: "Reaction. Played: Give a unit +2/+1 this round. Unleash LEFT to draw 1.", rarity: "common" }),
+  s("enrage", "Enrage", "crimson", "crimson:left crimson:up", [], { text: "Reaction. Played: Give a unit +2/+1 this round. Unleash LEFT to draw 1.", rarity: "common", reaction: true }),
   s("encore", "Encore", "crimson", "crimson:left crimson:up", [], { text: "Played: Draw 1, Excite. Unleash LEFT -> Draw 1.", rarity: "common" }),
   u("riri_riff_star", "Riri, Riff Star", "crimson", "crimson:down crimson:up", 3, 5, { text: "The first time you unleash each turn, deal 2 damage to the enemy champion.", rarity: "legendary" }),
   u("reil_riff_devourer", "Reil, Riff Devourer", "crimson", "crimson:down crimson:up crimson:up", 5, 4, { text: "Kill: Excite and Draw 1.", rarity: "uncommon" }),
@@ -124,9 +126,9 @@ export const FALLBACK_CATALOG: readonly CardDefinition[] = [
   u("sporic_trader", "Sporic Trader", "verdant", "verdant:right", 2, 2, { text: "Played: Sprout.", rarity: "uncommon" }),
   u("sporic_animater", "Sporic Animater", "verdant", "verdant:right verdant:up", 2, 2, { text: "Doom: Sprout, then Animate.", rarity: "common" }),
   u("sporic_strategist", "Sporic Strategist", "verdant", "verdant:right verdant:right", 3, 3, { text: "Ability: Sacrifice a friendly unit, -UP -> Draw 1.", rarity: "uncommon" }),
-  s("guards", "Guards!", "verdant", "verdant:left", [], { text: "Reaction. Played: Animate, give it +2/+0 this round.", rarity: "common" }),
+  s("guards", "Guards!", "verdant", "verdant:left", [], { text: "Reaction. Played: Animate, give it +2/+0 this round.", rarity: "common", reaction: true }),
   s("together_strong", "Together Strong", "verdant", "verdant:left", [], { text: "Played: Choose a unit, give it +1/+1 this round for each front-row unit you have.", rarity: "uncommon" }),
-  s("bonds_of_strength", "Bonds of Strength", "verdant", "verdant:left verdant:up", [], { text: "Reaction. Played: Give all your front-row units +2/+0 this round.", rarity: "common" }),
+  s("bonds_of_strength", "Bonds of Strength", "verdant", "verdant:left verdant:up", [], { text: "Reaction. Played: Give all your front-row units +2/+0 this round.", rarity: "common", reaction: true }),
   s("sacrifice", "Sacrifice", "verdant", "verdant:left verdant:up", [], { text: "Played: All players must sacrifice a unit if possible.", rarity: "common" }),
   u("sire_sporic_commander", "Sire, Sporic Commander", "verdant", "verdant:down verdant:up", 3, 3, { text: "Your front row units have +1/+1.", rarity: "uncommon" }),
   u("sivil_spore_mother", "Sivil, Spore Mother", "verdant", "verdant:down verdant:up verdant:up", 4, 4, { text: "The first time you Animate each turn, this gains +1/+1.", rarity: "legendary" }),
@@ -138,10 +140,10 @@ export const FALLBACK_CATALOG: readonly CardDefinition[] = [
   u("astral_ladybug", "Astral Ladybug", "azure", "azure:right", 1, 2, { text: "Constellation 3 - This has +1/+1.", rarity: "uncommon" }),
   u("astral_weaver", "Astral Weaver", "azure", "azure:right azure:up", 2, 2, { text: "Ability: -UP, UP -> Weave.", rarity: "uncommon" }),
   u("astral_serratist", "Astral Serratist", "azure", "azure:right azure:right", 3, 3, { text: "Kill: Weave", rarity: "uncommon" }),
-  s("starstruck", "Starstruck", "azure", "azure:left", [], { text: "Reaction. Played: Choose a unit, give it -1/-1 this turn.\nConstellation 3 - Chart 2.", rarity: "common" }),
+  s("starstruck", "Starstruck", "azure", "azure:left", [], { text: "Reaction. Played: Choose a unit, give it -1/-1 this turn.\nConstellation 3 - Chart 2.", rarity: "common", reaction: true }),
   s("starfall", "Starfall", "azure", "azure:left azure:up", [], { text: "Played: Deal 2 damage to any front-row unit.\nConstellation 3 - You may repeat this effect.", rarity: "uncommon" }),
   s("grand_conjuncture", "Grand Conjuncture", "azure", "azure:left azure:up", [], { text: "Played: Weave twice or Draw 2.", rarity: "common" }),
-  s("the_stars_align", "The Stars Align", "azure", "azure:left azure:left", [], { text: "Reaction. Counter target spell.\nConstellation 3 - Chart 2.", rarity: "uncommon" }),
+  s("the_stars_align", "The Stars Align", "azure", "azure:left azure:left", [], { text: "Reaction. Counter target spell.\nConstellation 3 - Chart 2.", rarity: "uncommon", reaction: true }),
   u("alia_astral_aligner", "Alia, Astral Aligner", "azure", "azure:down azure:up", 4, 4, { text: "Played: Reveal the top card of your deck, the cost of that card adds to your total Constellation this turn.\nConstellation 4 - Deal 6 damage to any front-row unit.", rarity: "legendary" }),
   u("arsdeth_deathstar", "Arsdeth, Deathstar", "azure", "azure:down azure:down", 5, 5, { text: "Doom: Deal damage equal to your constellation to the enemy Champion.", rarity: "common" }),
 ];
@@ -189,6 +191,7 @@ export function createCardFromDefinition(cardDefId: string, uniqueId: string): C
       health: def.health,
       haste: def.haste === true,
       onPlay: [...(def.onPlay ?? [])],
+      reaction: def.reaction === true,
       text: def.text ?? "",
       rarity: def.rarity ?? "common",
     },

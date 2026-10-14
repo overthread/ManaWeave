@@ -10,9 +10,14 @@ import type { RuleSet } from "../rules/RuleSet.js";
 import { GameRuleViolationError } from "../rules/GameRuleViolationError.js";
 import type { Card } from "../card/Card.js";
 
-const ALWAYS_LEGAL_TYPES = ["concede", "manual_action"];
 /** Never enumerated in listLegalActions (amounts/targets are free-form); validated in applyAction. */
 const UNENUMERATED_TYPES = ["manual_action"];
+/**
+ * Types NOT restricted to the turn player — the ruleset's listLegalActions
+ * still gates them field-for-field. play_card is here so a ruleset can offer
+ * off-turn casts (ManaWeave: Reaction spells join the shared spell stack).
+ */
+const TURN_UNGATED_TYPES = ["concede", "manual_action", "play_card"];
 
 function normalizeThreads(ids: readonly string[] | undefined): string {
   return [...(ids ?? [])].sort().join(",");
@@ -69,7 +74,7 @@ export class BattleEngine {
 
   submitAction(state: GameState, action: GameAction): GameState {
     if (state.winnerPlayerId) throw new GameRuleViolationError("Game is already finished.");
-    if (ALWAYS_LEGAL_TYPES.indexOf(action.type) < 0 && action.playerId !== state.turnPlayerId) {
+    if (TURN_UNGATED_TYPES.indexOf(action.type) < 0 && action.playerId !== state.turnPlayerId) {
       throw new GameRuleViolationError("Only the active player can take this action.");
     }
     if (!state.players[action.playerId]) {

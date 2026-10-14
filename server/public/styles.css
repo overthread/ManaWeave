@@ -645,6 +645,94 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   box-shadow: inset 0 0 0 1px rgba(161, 119, 46, 0.55), 0 0 10px rgba(161, 119, 46, 0.25);
 }
 
+/* ---- shared spell stack: the game's one spell slot ---------------------- */
+.spell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  background-color: #f0e6c8;
+  background-image: var(--paper-noise);
+  border: 1px solid rgba(74, 87, 126, 0.55);
+  border-radius: var(--radius-md);
+  box-shadow:
+    inset 0 0 0 2px #f0e6c8,
+    inset 0 0 0 3px rgba(74, 87, 126, 0.3),
+    0 2px 8px rgba(77, 61, 39, 0.18);
+}
+.spell-stack:has(.spell-stack-entry) {
+  animation: riseIn 0.24s var(--ease-out-soft);
+}
+.spell-stack-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.spell-stack-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--azure-thread);
+}
+.spell-stack-order {
+  color: var(--muted);
+  font-size: 12px;
+}
+.spell-stack-head button {
+  margin-left: auto;
+}
+.spell-stack-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  min-height: 20px;
+}
+.spell-stack-empty {
+  font-size: 12px;
+}
+.spell-stack-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+}
+.spell-stack-entry .card {
+  width: 104px;
+  min-height: 138px;
+  font-size: 11px;
+}
+.spell-stack-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background-color: var(--panel);
+}
+.spell-stack-badge.next {
+  color: #f7f0dc;
+  background-color: var(--azure-thread);
+  border-color: var(--azure-thread);
+  font-weight: 700;
+}
+.spell-stack-caster {
+  font-size: 11px;
+  color: var(--muted);
+}
+.reaction-pill {
+  border-color: rgba(74, 144, 217, 0.7);
+  color: var(--azure-thread);
+  background-color: rgba(74, 144, 217, 0.12);
+  animation: riseIn 0.24s var(--ease-out-soft);
+}
+
 .hand-row {
   display: flex;
   gap: 8px;
@@ -1155,7 +1243,7 @@ details.rules ul { margin: 8px 0; padding-left: 20px; color: #5c4f39; font-size:
 @media (prefers-reduced-transparency: reduce) {
   body, .panel, .player-bar, .loom-row, .battlefield, .hand-row, .log-panel,
   .zone-viewer-box, .ctx-menu, .casting-bar, .peek-panel, input, select,
-  .pile, code.room-code, .card {
+  .pile, code.room-code, .card, .spell-stack {
     background-image: none;
   }
   .zone-viewer { background-color: rgba(46, 34, 20, 0.75); }

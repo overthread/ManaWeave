@@ -43,7 +43,8 @@ export type EffectKind =
   | "animate_thread" // move a loom thread to the battlefield as a unit (Animate)
   | "excite_thread" // put an excite token on a loom thread (Excite)
   | "unleash_thread" // spend an excite token from a loom thread (Unleash)
-  | "sacrifice_threadling"; // remove a Threadling token thread from its loom outright
+  | "sacrifice_threadling" // remove a Threadling token thread from its loom outright
+  | "resolve_spell"; // a spell leaves the shared stack for its caster's discard (resolved or countered)
 
 export interface CardEffect {
   readonly kind: EffectKind;
@@ -58,6 +59,8 @@ export interface CardEffect {
   readonly position?: "top" | "bottom";
   /** add_token token type (only "threadling" exists) */
   readonly token?: "threadling";
+  /** resolve_spell: the spell fizzles off the stack without resolving (Counter) */
+  readonly countered?: boolean;
 }
 
 export interface CardStats {

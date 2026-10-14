@@ -2,7 +2,7 @@
 
 An online 2-player card battler. **You are a weaver. Four threads hang in your loom — flip them to pay, rotate them to weave, and pull your pattern down over your opponent's pattern until theirs unravels.**
 
-This document is the authoritative rules reference for the current ruleset (`manaweave` v3.1.0, implemented in `server/src/domain/rules/LoomRuleSet.ts`).
+This document is the authoritative rules reference for the current ruleset (`manaweave` v3.2.0, implemented in `server/src/domain/rules/LoomRuleSet.ts`).
 
 ---
 
@@ -51,6 +51,8 @@ Players alternate rounds. Your round, in order:
 
 Units cannot attack the round they are played unless they have **Quickstride**.
 
+Outside your round you can still act: **Reaction** spells may be cast at any time it is not your own round (§6), landing on the shared **spell stack** (§5) on top of whatever is already there — and manual actions (§6.1) are always open to either weaver.
+
 ## 4. The board
 
 3 lanes × 2 rows (front/back) per player = 6 slots on your side (12 on the board). Units enter any free slot; one unit per slot — the one exception is a **stack**: an effect that explicitly allows it (Animate, §6) may hold several Animated units in a single slot.
@@ -63,7 +65,9 @@ Units cannot attack the round they are played unless they have **Quickstride**.
 
 ## 5. Zones & winning
 
-Zones: loom, hand, battlefield, deck, **discard** (graveyard), **purge** (exile).
+Zones: loom, hand, battlefield, deck, **discard** (graveyard), **purge** (exile) — plus the **spell stack**, the game's one shared spell slot (see below).
+
+**The spell stack** is a single shared zone between the weavers. Casting a spell pays its cost and places it on the stack instead of discarding it — **both weavers' spells (and their Reactions) stack up in the same slot, in cast order**. Nothing resolves automatically: the stack is resolved **by hand, top-down** — the newest spell (the top) resolves first, then the next under it, each ending in its **caster's** discard when resolved or countered. The battle screen shows the stack as a strip under the battlefield: leftmost is the top ("resolves next"), with each spell's caster and resolution order badged on it. The stack is public and persists across rounds until emptied by hand.
 
 The **discard and purge piles are public** — both weavers see their contents (each player's bar shows live deck / discard / purge piles; clicking discard or purge opens the pile's cards, and any card in them can be right-clicked to send it elsewhere). Decks and hands stay hidden: the deck renders as a count, and only its owner may peek at it.
 
@@ -77,7 +81,7 @@ The **discard and purge piles are public** — both weavers see their contents (
 - **Doom** — a deathrattle: the effect triggers when the unit dies.
 - **Kill** — the effect triggers when this unit kills an enemy unit.
 - **Hunt** — when this unit attacks, it may first move into an adjacent lane that holds an enemy front-row unit, attacking into that lane instead.
-- **Reaction** — the spell may be played outside your own round.
+- **Reaction** — the spell may be cast outside your own round: any time it is not your turn, even mid-stack. It pays its threads like any cast and goes **on top of the shared spell stack** (§5) — so it resolves *before* the spell it answers. The client highlights payable Reactions in your hand during the opponent's round (a "reaction window" pill appears); Reactions without a payable cost are not offered.
 - **Ability** — activated unit text; usable once per round.
 - **Sprout** — create a **Threadling** token in your loom.
 - **Threadling** — a colourless token thread. It points **up** by default and may be rotated during the end step. It is never exhausted to pay: it is **sacrificed** to pay **any one arrow** of a cost, ignoring colour and orientation. The loom has no size cap — Threadlings grow it past four threads. A Threadling can also be **sacrificed outright** — right-click it in the loom (§6.1); real threads cannot be sacrificed away.
@@ -87,7 +91,9 @@ The **discard and purge piles are public** — both weavers see their contents (
 
 ### 6.1 Manual resolution
 
-The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it in the discard; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions**, fired from **right-click context menus** on the board (the one panel exception: the **Add token** button in the chronicle panel on the right):
+The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it on the shared spell stack; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions**, fired from **right-click context menus** on the board (the one panel exception: the **Add token** button in the chronicle panel on the right):
+
+- **Right-click a stack spell** (or use the stack strip's **✔ Resolve top** button): **Resolve** (its effect is applied by hand, then it leaves for its caster's discard) or **Counter** (it fizzles to the caster's discard unresolved — the manual verb behind *The Stars Align*), or send it elsewhere (hand / deck / purge) for playtesting. Resolution follows the visualized order: top first.
 
 - **Right-click a unit** (either side): deal damage, adjust power / health (steppers, signed), return to owner's hand, destroy, or send it to another area.
 - **Right-click a hand card**: discard it, or send it to the deck (top/bottom) or purge.
@@ -101,7 +107,7 @@ Every change to life, unit power and unit health is shown as a **floating delta 
 
 - **Unrestricted by design**: either weaver may fire manual actions at any time, even outside their turn — no turn gating, no legality enumeration. Cross-player moves are legal (you may rotate an enemy thread or send an enemy unit to hand); the only hidden-information rule is that `peek_deck` targets your own deck.
 - The server validates that targets exist and amounts are whole numbers (clamped to ±999); every resulting state change (life, unit health, zones, threads, decks) is tracked server-side, and a weaver hitting 0 life still ends the game.
-- The manual verbs cover the full effect vocabulary plus combat damage and playtest tools: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `exhaust_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`, `peek_deck`, `shuffle_deck`, `move_card` (send any card in any zone to hand / deck top / deck bottom / discard / purge), `add_token` (sprout a Threadling into either loom), `animate_thread` (loom thread → battlefield unit on its owner's side; death returns the thread), `excite_thread` / `unleash_thread` (put an excite token on a thread / spend one — the manual verbs behind Excite and Unleash) and `sacrifice_threadling` (remove a Threadling from its loom outright). Animated threads are real cards — they can be damaged, buffed and sent to other areas like any unit.
+- The manual verbs cover the full effect vocabulary plus combat damage and playtest tools: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `exhaust_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`, `peek_deck`, `shuffle_deck`, `move_card` (send any card in any zone — **including the spell stack** — to hand / deck top / deck bottom / discard / purge), `add_token` (sprout a Threadling into either loom), `animate_thread` (loom thread → battlefield unit on its owner's side; death returns the thread), `excite_thread` / `unleash_thread` (put an excite token on a thread / spend one — the manual verbs behind Excite and Unleash), `sacrifice_threadling` (remove a Threadling from its loom outright) and `resolve_spell` (a spell leaves the shared stack for its caster's discard — resolved, or `countered: true` to fizzle it). Animated threads are real cards — they can be damaged, buffed and sent to other areas like any unit.
 
 ## 7. Deck construction
 
@@ -197,6 +203,7 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_URL` env var; `/
 | `attack` | `power` | number |
 | `health` | | number |
 | `haste` | `quickstride` | `true` / `yes` / `1` |
+| `reaction` | | `true` / `yes` / `1` — spells only; if the column is absent, a card text beginning with "Reaction." marks it |
 | `effects` | | JSON array (see §6 vocabulary), e.g. `[{"kind":"damage_unit","amount":2,"scope":"any"}]` |
 | `on_play` | | JSON array for "when woven" triggers |
 | `text` | `description`, `effect` | rules text shown on the card — the published draft sheets put their prose in `effect` |
@@ -215,7 +222,8 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_URL` env var; `/
 
 ## 10. Where things live
 
-- **Rules** — `server/src/domain/rules/LoomRuleSet.ts` (payment, combat-as-declaration, manual effect application, turns, deck & loom validation)
+- **Rules** — `server/src/domain/rules/LoomRuleSet.ts` (payment, combat-as-declaration, the shared spell stack, Reaction legality, manual effect application, turns, deck & loom validation)
+- **Spell stack** — `parseSpellStack`/`SpellStackEntry` in `LoomRuleSet.ts`; stored as `{ card, casterId }` entries (bottom-first) in `state.metadata.spellStack`, cloned with the state, shipped **top-first and public** to both views as `spellStack` in `sanitize.ts`; rendered by the `#spell-stack` strip in `game-view.js` (newest left = resolves first, caster + order badges, resolve/counter context menu, **✔ Resolve top** button)
 - **Manual actions** — `ManualAction` in `server/src/domain/actions/GameAction.ts`; exempt from turn/legality gating in `BattleEngine`, applied by `applyManualAction` (incl. `move_card`, `peek_deck`, `shuffle_deck`, `exhaust_thread`)
 - **Deck peeks** — `DeckPeekMetadata`/`parseDeckPeeks` in `LoomRuleSet.ts`; stored as card ids in `state.metadata.deckPeek`, re-snapshotted after every action, shipped **only** to the peeking player's view in `sanitize.ts`
 - **Cards** — `server/src/domain/card/CardDefinitions.ts` (built-in catalog + cost parser), `Card.ts` (`CostEntry` + `CardEffect` types)
@@ -224,5 +232,5 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_URL` env var; `/
 - **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link). The Deck Builder link navigates in the **same tab** — a new tab gets a fresh `sessionStorage` (Firefox/Safari give it nothing, Chrome a frozen copy), which would force a re-login. The current room is remembered twice: per tab in `sessionStorage` (`manaweave.lobby`, written by `enterRoom` — refresh recovery) and per account in `localStorage` (`manaweave.room.<accountId>`) so a fresh tab or a re-login re-enters the room without the code — the server's join endpoint returns the account's existing seat. An explicit `?join=CODE` link outranks the remembered room; only the tab's own room can pre-empt it. When a match ends, the server settles its room back to *waiting* (seats and deck picks kept — `settleFinishedGame` on the `game_finished` event), so returning to the lobby after a win or concession re-opens the room for a rematch instead of redirecting back into the finished game; a *live* match still captures room recovery (refresh protection).
 - **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON; discard/purge piles public, deck peeks owner-only)
 - **Context menus** — `server/public/js/context-menu.js` (right-click menus: actions, submenus, −/+ steppers); wired into every card/thread/pile by `game-view.js`, which also renders the zone piles, life −/+ buttons, peek panel, pile viewers, the right-panel **Add token** picker (Threadling → either loom) and the floating `+N/−N` delta indicators
-- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 122 checks incl. manual actions, zone moves, deck peeks, excite/unleash, Threadling sacrifice & CSV catalog mapping)
+- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 138 checks incl. manual actions, zone moves, deck peeks, excite/unleash, Threadling sacrifice, CSV catalog mapping, the shared spell stack & Reaction casting)
 - **Architecture & running** — see the root `README.md`

@@ -28,6 +28,8 @@
 
       <div class="battlefield" id="battlefield"></div>
 
+      <div class="spell-stack" id="spell-stack"></div>
+
       <div class="controls-row" id="controls"></div>
       <div class="casting-bar" id="casting-bar"></div>
       <div class="peek-panel" id="peek-panel"></div>
@@ -69,6 +71,7 @@
         <p><b>Weaving:</b> threads start pointing <b>up</b>, so costs with sideways arrows (→ ↓ ←) must be prepared ahead — once per round, in the weave step, you may rotate one thread 90°.</p>
         <p><b>Your round:</b> draw a card → <b>main step</b> (play cards, move back-row units forward, attack — in any order) → optional <b>weave step</b> → end round.</p>
         <p><b>Attacking:</b> click the ⚔ badge on a front-row unit. That exhausts the unit and declares the combat — the damage itself is applied by hand (see below). Defender priority: enemy front unit in the lane first, else the back unit, else the enemy weaver.</p>
+        <p><b>The spell stack:</b> cast spells don't discard — they wait on the <b>shared spell stack</b> (the strip under the battlefield). <b>Reaction</b> spells may be cast outside your own round, even during the opponent's turn — they go on top of the same stack. The newest spell (leftmost) <b>resolves first</b>; resolve or counter stack spells by hand, top-down.</p>
         <p><b>By hand:</b> the engine never resolves card effects or combat damage. <b>Right-click any card, thread, deck or pile</b> for a menu — deal damage, adjust stats, rotate/excite threads, draw, discard, move cards between zones. Adjust life with the −/+ buttons on either player bar. Manual actions are free: either weaver, any time.</p>
         <p class="muted">Full rules reference: docs/game-design.md in the repository.</p>
       </div>

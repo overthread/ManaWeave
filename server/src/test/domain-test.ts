@@ -3,7 +3,7 @@
  * ManaWeave rules end-to-end. Run: npm run test:domain
  */
 
-import { LoomRuleSet } from "../domain/rules/LoomRuleSet.js";
+import { LoomRuleSet, parseSpellStack } from "../domain/rules/LoomRuleSet.js";
 import { BattleEngine } from "../domain/services/BattleEngine.js";
 import { GameRuleViolationError } from "../domain/rules/GameRuleViolationError.js";
 import { createCardFromDefinition } from "../domain/card/CardDefinitions.js";
@@ -240,7 +240,7 @@ console.log("\n— moving, weaving, turn cycle —");
   check("unit flags reset for p1", meta(next.players.p1!.battlefield[0]!).attackedThisTurn === false && meta(next.players.p1!.battlefield[0]!).movedThisTurn === false);
 }
 
-console.log("\n— spells: pay & discard; effects resolved by hand —");
+console.log("\n— spells: pay & wait on the shared stack; effects resolved by hand —");
 {
   const state = newGame();
   const sacrificeSpell = createCardFromDefinition("sacrifice", "p1-spell"); // verdant:left verdant:up
@@ -254,7 +254,9 @@ console.log("\n— spells: pay & discard; effects resolved by hand —");
   state.players.p2!.battlefield = [target];
   const next = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sacrificeSpell.id, threadIds: ["p1-thread-1", "p1-thread-2"], laneIndex: null, row: null });
   check("casting no longer auto-damages", meta(next.players.p2!.battlefield[0]!).healthRemaining === 4);
-  check("spell went to discard", next.players.p1!.graveyard.some((c) => c.id === sacrificeSpell.id));
+  const stackAfter = parseSpellStack(next.metadata.spellStack);
+  check("spell waits on the shared stack", stackAfter.length === 1 && stackAfter[0]!.card.id === sacrificeSpell.id && stackAfter[0]!.casterId === "p1");
+  check("spell is not in the discard yet", !next.players.p1!.graveyard.some((c) => c.id === sacrificeSpell.id));
   const loomsAfterCast = (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!;
   check("casting exhausted its threads", loomsAfterCast.find((t) => t.id === "p1-thread-1")!.exhausted && loomsAfterCast.find((t) => t.id === "p1-thread-2")!.exhausted);
   const n1 = engine.submitAction(next, { type: "manual_action", gameId: next.gameId, playerId: "p1", effect: { kind: "damage_unit", amount: 2 }, targetCardId: target.id });
@@ -270,6 +272,64 @@ console.log("\n— spells: pay & discard; effects resolved by hand —");
   s2.players.p2!.battlefield = [frail];
   const n2 = engine.submitAction(s2, { type: "manual_action", gameId: s2.gameId, playerId: "p1", effect: { kind: "buff_unit", atk: 0, hp: -2 }, targetCardId: frail.id });
   check("manual -0/-2 kills the frail unit", n2.players.p2!.battlefield.length === 0 && n2.players.p2!.graveyard.length === 1);
+}
+
+console.log("\n— the spell stack: both weavers, one stack, LIFO by hand —");
+{
+  const state = newGame(); // p1's turn
+  // p1 casts a spell (verdant:left verdant:up — Sacrifice).
+  const sacrificeSpell = createCardFromDefinition("sacrifice", "p1-spell");
+  (state.metadata.looms as Record<string, { orientation: number }[]>).p1![0]!.orientation = 3;
+  state.players.p1!.hand = [sacrificeSpell];
+  const s1 = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sacrificeSpell.id, threadIds: ["p1-thread-1", "p1-thread-2"], laneIndex: null, row: null });
+
+  // p2 (NOT the active player) reacts with Wyrmbite (crimson:left, Reaction).
+  const wyrmbite = createCardFromDefinition("wyrmbite", "p2-spell");
+  check("reaction spell is flagged", meta(wyrmbite).reaction === true);
+  check("non-reaction spell is not flagged", meta(createCardFromDefinition("sacrifice", "x")).reaction !== true);
+  (s1.metadata.looms as Record<string, { orientation: number }[]>).p2![0]!.orientation = 3; // a crimson thread points left
+  s1.players.p2!.hand = [wyrmbite];
+  const legal = ruleSet.listLegalActions(s1, "p2");
+  check("opponent is offered only the payable Reaction", legal.filter((a) => a.type === "play_card").length === 1 && (legal.find((a) => a.type === "play_card") as { cardId: string }).cardId === wyrmbite.id);
+  const s2 = engine.submitAction(s1, { type: "play_card", gameId: s1.gameId, playerId: "p2", cardId: wyrmbite.id, threadIds: ["p2-thread-1"], laneIndex: null, row: null });
+  const stack = parseSpellStack(s2.metadata.spellStack);
+  check("both weavers' spells share one stack", stack.length === 2 && stack[0]!.casterId === "p1" && stack[1]!.casterId === "p2");
+  check("the reaction landed on top", stack[1]!.card.id === wyrmbite.id);
+
+  // Non-reaction spells cannot be cast outside your own round.
+  const plainSpell = createCardFromDefinition("sacrifice", "p2-plain");
+  s2.players.p2!.hand = [plainSpell];
+  expectThrow("non-reaction cast off-turn rejected", () =>
+    engine.submitAction(s2, { type: "play_card", gameId: s2.gameId, playerId: "p2", cardId: plainSpell.id, threadIds: ["p2-thread-2", "p2-thread-3"], laneIndex: null, row: null }),
+  );
+
+  // Resolution by hand: the top (the Reaction) resolves first -> caster's discard.
+  const s3 = engine.submitAction(s2, { type: "manual_action", gameId: s2.gameId, playerId: "p2", effect: { kind: "resolve_spell" }, targetCardId: wyrmbite.id });
+  check("resolving removes it from the stack", parseSpellStack(s3.metadata.spellStack).some((e) => e.card.id === wyrmbite.id) === false);
+  check("resolved spell rests in its CASTER's discard", s3.players.p2!.graveyard.some((c) => c.id === wyrmbite.id) && !s3.players.p1!.graveyard.some((c) => c.id === wyrmbite.id));
+  const s4 = engine.submitAction(s3, { type: "manual_action", gameId: s3.gameId, playerId: "p1", effect: { kind: "resolve_spell", countered: true }, targetCardId: sacrificeSpell.id });
+  check("countering clears the stack into the discard", parseSpellStack(s4.metadata.spellStack).length === 0 && s4.players.p1!.graveyard.some((c) => c.id === sacrificeSpell.id));
+
+  // move_card also works straight off the stack (playtest freedom).
+  const s5 = engine.submitAction(s2, { type: "manual_action", gameId: s2.gameId, playerId: "p1", effect: { kind: "move_card", zone: "exile" }, targetCardId: wyrmbite.id });
+  check("move_card can pull a spell off the stack to purge", parseSpellStack(s5.metadata.spellStack).length === 1 && s5.players.p2!.exile.some((c) => c.id === wyrmbite.id));
+  expectThrow("resolve_spell on a non-stack card rejected", () =>
+    engine.submitAction(s5, { type: "manual_action", gameId: s5.gameId, playerId: "p1", effect: { kind: "resolve_spell" }, targetCardId: s5.players.p2!.exile[0]!.id }),
+  );
+
+  // The stack is public: both sanitized views list it top-first with casters.
+  const mine = sanitizeStateForPlayer(s2, "p1", ruleSet);
+  const theirs = sanitizeStateForPlayer(s2, "p2", ruleSet);
+  check(
+    "spell stack ships to both views, top first",
+    mine.spellStack.length === 2 && theirs.spellStack.length === 2 && mine.spellStack[0]!.card.id === wyrmbite.id && mine.spellStack[0]!.casterId === "p2" && mine.spellStack[1]!.card.id === sacrificeSpell.id,
+  );
+  check("caster names resolve in the view", mine.spellStack[0]!.casterName === "Bob" && theirs.spellStack[1]!.casterName === "Alice");
+  check("reaction flag ships to the client view", theirs.spellStack[0]!.card.reaction === true);
+
+  // The stack survives turn changes until resolved by hand.
+  const s6 = engine.submitAction(s2, { type: "end_turn", gameId: s2.gameId, playerId: "p1" });
+  check("stack persists across round changes", parseSpellStack(s6.metadata.spellStack).length === 2);
 }
 
 console.log("\n— manual actions: either weaver, any time, no restrictions —");
@@ -404,7 +464,9 @@ console.log("\n— turn-bound enforcement —");
   expectThrow("non-active player cannot act", () =>
     engine.submitAction(state, { type: "end_turn", gameId: state.gameId, playerId: "p2" }));
   const legalP2 = ruleSet.listLegalActions(state, "p2");
-  check("non-active player only offered concede", legalP2.length === 1 && legalP2[0]!.type === "concede");
+  // No payable Reaction in hand here (threads all point up), so only concede —
+  // reaction offers are covered in the spell-stack section below.
+  check("non-active player offered only concede (no payable Reaction)", legalP2.length === 1 && legalP2[0]!.type === "concede");
 }
 
 console.log("\n— Threadlings: sprout, sacrifice payment, animate —");
