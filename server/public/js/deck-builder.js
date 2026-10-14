@@ -5,7 +5,7 @@ const DECK_MIN = 20;
 const DECK_MAX = 30;
 const MAX_COPIES = 3;
 const LOOM_SIZE = 4;
-const THREAD_COLOURS = ["ember", "tide", "verdant", "umbra"];
+const THREAD_COLOURS = ["ember", "tide", "verdant", "umbra", "crimson", "azure"];
 
 const SAMPLES = {
   ember: {

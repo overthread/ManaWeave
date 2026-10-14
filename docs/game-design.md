@@ -10,7 +10,7 @@ This document is the authoritative rules reference for the current ruleset (`man
 
 Each player has a **Loom of 4 threads** — Sprout effects can grow it past four with Threadling tokens (§6). A thread has:
 
-- a **colour** — Ember 🔥, Tide 🌊, Verdant 🌿, or Umbra 🌙 (never neutral),
+- a **colour** — Ember 🔥, Tide 🌊, Verdant 🌿, or Umbra 🌙 (never neutral; the draft sheets add Crimson 🌋 and Azure ☁️ as loadable thread colours — §9),
 - an **orientation** — one of the four directions it points: **up ↑, right →, down ↓, left ←**,
 - a **readiness** — ready or **exhausted** (flipped).
 
@@ -196,7 +196,7 @@ You have more ↑s early and more ←/→/↓s late: every weave rotates a threa
 
 Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars; `/pubhtml` links are auto-normalized). Each var accepts **multiple URLs separated by commas or whitespace** — point one var at all your published colour tabs; each row's `type` column decides unit vs spell, duplicate card ids are skipped. Header names are normalized (lowercase, spaces/dashes → underscores). Failed sheets fall back to the built-in catalog.
 
-**Published colour sheets** (design-stage lists; effects are prose, resolved by hand per §6.1):
+**Published colour sheets** (design-stage lists; the `effect` column is prose shown as card text and resolved by hand per §6.1; Crimson and Azure load as loom-pickable thread colours alongside the launch four):
 
 - Crimson — excite/unleash economy: [Crimson sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=0&single=true&output=csv)
 - Verdant — Threadling/animate economy: [Verdant sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=1378402100&single=true&output=csv)
@@ -207,7 +207,7 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 | `title` | `name` | required — row skipped without it |
 | `card_id` | `id` | optional, defaults to slugified title |
 | `type` | | `unit` or `spell` (anything but "spell" = unit) |
-| `colour` | `color` | `ember` / `tide` / `verdant` / `umbra` / `neutral` |
+| `colour` | `color` | `ember` / `tide` / `verdant` / `umbra` / `crimson` / `azure` / `neutral` (case-insensitive; the draft sheets write `CRIMSON` / `VERDANT` / `AZURE`) |
 | `cost` | | `colour:orientation` entries separated by `+`, `,` or spaces — e.g. `ember:up + ember:left`, shorthand `e:u e:l`, wildcard `any:down` |
 | `orientation_req` | `orientation` | legacy column — forces the last entry's orientation |
 | `attack` | `power` | number |
@@ -215,7 +215,7 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 | `haste` | `quickstride` | `true` / `yes` / `1` |
 | `effects` | | JSON array (see §6 vocabulary), e.g. `[{"kind":"damage_unit","amount":2,"scope":"any"}]` |
 | `on_play` | | JSON array for "when woven" triggers |
-| `text` | `description` | rules text shown on the card |
+| `text` | `description`, `effect` | rules text shown on the card — the published draft sheets put their prose in `effect` |
 | `rarity` | | defaults to `common` |
 
 **Legacy compatibility:** a bare orientation token (`up left`) uses the row's own colour (or `any` for neutral rows); a bare number `N` becomes N × `<row colour>:up`; the old `orientation_req` column re-points the final entry.
@@ -237,8 +237,8 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 - **Cards** — `server/src/domain/card/CardDefinitions.ts` (built-in catalog + cost parser), `Card.ts` (`CostEntry` + `CardEffect` types)
 - **CSV ingestion** — `server/src/infrastructure/cards/csvCatalog.ts`
 - **Accounts & login** — `server/src/infrastructure/persistence/JsonAccountStore.ts` (`DATA_DIR/accounts.json`, unsalted sha256 — playtest-grade, not production auth), `server/src/infrastructure/auth/tokens.ts` (stateless HMAC bearer tokens), routes in `http/routes/authRoutes.ts`; deck CRUD is account-scoped at `/api/decks`, lobby seats bind to accounts in `lobby/LobbyState.ts` (`playerAccounts`)
-- **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link)
+- **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link). The Deck Builder link navigates in the **same tab** — a new tab gets a fresh `sessionStorage` (Firefox/Safari give it nothing, Chrome a frozen copy), which would force a re-login. The current room is remembered twice: per tab in `sessionStorage` (`manaweave.lobby`, written by `enterRoom` — refresh recovery) and per account in `localStorage` (`manaweave.room.<accountId>`) so a fresh tab or a re-login re-enters the room without the code — the server's join endpoint returns the account's existing seat. An explicit `?join=CODE` link outranks the remembered room; only the tab's own room can pre-empt it.
 - **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON; discard/purge piles public, deck peeks owner-only)
 - **Context menus** — `server/public/js/context-menu.js` (right-click menus: actions, submenus, −/+ steppers); wired into every card/thread/pile by `game-view.js`, which also renders the zone piles, life −/+ buttons, peek panel, pile viewers and the floating `+N/−N` delta indicators
-- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 84 checks incl. manual actions, zone moves & deck peeks)
+- **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 91 checks incl. manual actions, zone moves, deck peeks & CSV catalog mapping)
 - **Architecture & running** — see the root `README.md`

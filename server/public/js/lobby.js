@@ -1,6 +1,6 @@
 /** Lobby composition root: create/join, roster, deck selection, chat, start.
  *  Sessions are per-tab, so two tabs of one browser = two weavers = local playtest. */
-import { api, requireAuth, renderAuthHeader, getSession, showError, LOBBY_KEY } from "./shared.js";
+import { api, requireAuth, renderAuthHeader, getSession, showError, LOBBY_KEY, rememberRoom, getRememberedRoom, forgetRoom } from "./shared.js";
 
 const state = {
   roomCode: null,
@@ -157,27 +157,46 @@ async function enterRoom(data) {
   state.playerKey = data.playerKey;
   state.lobby = data.lobby;
   sessionStorage.setItem(LOBBY_KEY, JSON.stringify({ roomCode: data.roomCode, playerId: data.playerId, playerKey: data.playerKey }));
+  rememberRoom(getSession()?.accountId, data.roomCode);
   $("join-panel").style.display = "none";
   renderLobby(data.lobby);
   connectWs();
   void refreshDecks();
 }
 
-async function tryResume() {
+/** Re-enter this tab's room (refresh recovery), then the account's remembered
+ *  room (fresh tab / after a re-login — the server re-seats joins by account).
+ *  An explicit ?join= link must win over remembered rooms, so it can suppress
+ *  the remembered fallback. */
+async function tryResume(allowRemembered = true) {
   const saved = JSON.parse(sessionStorage.getItem(LOBBY_KEY) ?? "null");
-  if (!saved?.roomCode) return false;
-  try {
-    const lobby = await api(`/api/lobbies/${encodeURIComponent(saved.roomCode)}`);
-    if (lobby.lobby.status === "started" && lobby.lobby.gameId) {
-      location.href = `/?gameId=${encodeURIComponent(lobby.lobby.gameId)}&playerId=${encodeURIComponent(saved.playerId)}`;
-      return true;
+  if (saved?.roomCode) {
+    try {
+      const lobby = await api(`/api/lobbies/${encodeURIComponent(saved.roomCode)}`);
+      if (lobby.lobby.status === "started" && lobby.lobby.gameId) {
+        location.href = `/?gameId=${encodeURIComponent(lobby.lobby.gameId)}&playerId=${encodeURIComponent(saved.playerId)}`;
+        return true;
+      }
+      if (lobby.lobby.players.some((p) => p.id === saved.playerId)) {
+        await enterRoom({ ...saved, lobby: lobby.lobby });
+        return true;
+      }
+    } catch {
+      sessionStorage.removeItem(LOBBY_KEY);
     }
-    if (lobby.lobby.players.some((p) => p.id === saved.playerId)) {
-      await enterRoom({ ...saved, lobby: lobby.lobby });
-      return true;
+  }
+  if (allowRemembered) {
+    const account = getSession();
+    const roomCode = getRememberedRoom(account?.accountId);
+    if (roomCode) {
+      try {
+        // Joining with our own account returns our existing seat.
+        await joinRoom(roomCode);
+        return true;
+      } catch {
+        forgetRoom(account.accountId);
+      }
     }
-  } catch {
-    sessionStorage.removeItem(LOBBY_KEY);
   }
   return false;
 }
@@ -236,9 +255,10 @@ async function init() {
   });
 
   // Resumed straight into a room? Otherwise auto-join when arriving via a
-  // second-seat playtest link (?join=CODE).
-  const resumed = await tryResume();
+  // second-seat playtest link (?join=CODE). The link outranks a remembered
+  // room; only this tab's own room can pre-empt it.
   const autoJoin = new URLSearchParams(location.search).get("join")?.trim().toUpperCase();
+  const resumed = await tryResume(!autoJoin);
   if (!resumed && autoJoin) {
     try {
       await joinRoom(autoJoin);

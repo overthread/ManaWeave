@@ -47,7 +47,7 @@ export function parseCost(raw: string): CostEntry[] {
     if (!orientation) throw new Error(`Unknown orientation in cost entry: "${token}" (in "${raw}")`);
     const colour = colourRaw === undefined
       ? "any"
-      : (["any", "neutral", "ember", "tide", "verdant", "umbra"] as const).find((c) => c.startsWith(colourRaw));
+      : (["any", "neutral", "ember", "tide", "verdant", "umbra", "crimson", "azure"] as const).find((c) => c.startsWith(colourRaw));
     if (!colour) throw new Error(`Unknown colour in cost entry: "${token}" (in "${raw}")`);
     out.push({ colour: colour === "neutral" ? "any" : colour, orientation });
   }

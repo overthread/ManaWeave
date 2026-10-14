@@ -5,7 +5,8 @@
 
 export type CardType = "unit" | "spell";
 
-export type ThreadColour = "ember" | "tide" | "verdant" | "umbra" | "neutral";
+/** Launch loom colours + the draft-sheet colours (Crimson, Azure) + neutral. */
+export type ThreadColour = "ember" | "tide" | "verdant" | "umbra" | "crimson" | "azure" | "neutral";
 
 /** The four directions a thread can point; a card's cost is a list of these. */
 export type OrientationName = "up" | "right" | "down" | "left";

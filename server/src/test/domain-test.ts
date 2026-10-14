@@ -9,6 +9,9 @@ import { GameRuleViolationError } from "../domain/rules/GameRuleViolationError.j
 import { createCardFromDefinition } from "../domain/card/CardDefinitions.js";
 import { sanitizeStateForPlayer } from "../domain/game/sanitize.js";
 import { DEMO_DECKS, expandTemplate } from "../infrastructure/cards/demoDecks.js";
+import { csvRowsToDefinitions, parseCsv } from "../infrastructure/cards/csvCatalog.js";
+import { THREAD_COLOURS } from "../domain/rules/deckRules.js";
+import { Card } from "../domain/card/Card.js";
 import type { PlayCardAction } from "../domain/actions/GameAction.js";
 
 const ruleSet = new LoomRuleSet();
@@ -399,6 +402,37 @@ console.log("\n— turn-bound enforcement —");
     engine.submitAction(state, { type: "end_turn", gameId: state.gameId, playerId: "p2" }));
   const legalP2 = ruleSet.listLegalActions(state, "p2");
   check("non-active player only offered concede", legalP2.length === 1 && legalP2[0]!.type === "concede");
+}
+
+console.log("\n— csv catalog mapping —");
+{
+  // Mirrors the published draft sheets: prose `effect` column, UPPERCASE colours,
+  // bare-orientation costs, multi-line cells.
+  const rows = parseCsv([
+    "title,color,type,cost,power,health,effect,rarity",
+    "Riff Larva,CRIMSON,unit,\"UP, UP\",1,1,Doom: Excite.,common",
+    "Starstruck,AZURE,spell,LEFT,,,\"Reaction. Played: Choose a unit, give it -1/-1 this turn.",
+    "Constellation 3 - Chart 2.\",common",
+  ].join("\n"));
+  const defs = csvRowsToDefinitions("units", rows);
+  const larva = defs.find((d) => d.title === "Riff Larva");
+  const starstruck = defs.find((d) => d.title === "Starstruck");
+  check("csv: prose effect column becomes the card text", larva?.text === "Doom: Excite.");
+  check("csv: uppercase draft colours map to crimson/azure", larva?.colour === "crimson" && starstruck?.colour === "azure");
+  check("csv: bare orientations lock to the row colour", larva?.cost.length === 2 && larva.cost.every((e) => e.colour === "crimson" && e.orientation === "up"));
+  check("csv: multi-line effect text kept verbatim", (starstruck?.text ?? "").includes("\n"));
+
+  check("crimson and azure are loom-legal thread colours", THREAD_COLOURS.includes("crimson") && THREAD_COLOURS.includes("azure"));
+  const crimsonDuo = new Card(
+    "t-crimson-duo",
+    "Test Duo",
+    "unit",
+    { attack: 1, health: 1, cost: [{ colour: "crimson", orientation: "up" }, { colour: "crimson", orientation: "up" }] },
+    [],
+    { colour: "crimson" },
+  );
+  check("loom holding two crimson threads validates a crimson:up:up cost", ruleSet.validateLoom(["crimson", "crimson", "azure", "azure"], [crimsonDuo]).ok);
+  check("loom without crimson threads is rejected", ruleSet.validateLoom(["ember", "ember", "tide", "tide"], [crimsonDuo]).ok === false);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

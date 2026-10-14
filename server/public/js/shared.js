@@ -31,6 +31,23 @@ export function getLastUsername() {
   return localStorage.getItem(LAST_USER_KEY) ?? "";
 }
 
+/** Each account's current room, in localStorage. Sessions are per tab, so a
+ *  deck-builder round trip or a re-login in a fresh tab would otherwise lose
+ *  the room; with this, the lobby re-enters it without asking for the code.
+ *  Keyed by account id so two same-browser seats never pick up each other's
+ *  room — matching the server, which re-seats joins by account. */
+export function rememberRoom(accountId, roomCode) {
+  if (accountId) localStorage.setItem(`manaweave.room.${accountId}`, roomCode);
+}
+
+export function getRememberedRoom(accountId) {
+  return accountId ? localStorage.getItem(`manaweave.room.${accountId}`) : null;
+}
+
+export function forgetRoom(accountId) {
+  if (accountId) localStorage.removeItem(`manaweave.room.${accountId}`);
+}
+
 /** Redirect to the login page unless this tab already has a session. */
 export function requireAuth() {
   const session = getSession();
@@ -101,6 +118,8 @@ export const COLOURS = {
   tide: { label: "Tide", hex: "#31629e", glyph: "🌊" },
   verdant: { label: "Verdant", hex: "#47743f", glyph: "🌿" },
   umbra: { label: "Umbra", hex: "#6d4692", glyph: "🌙" },
+  crimson: { label: "Crimson", hex: "#c8234c", glyph: "🌋" },
+  azure: { label: "Azure", hex: "#4a90d9", glyph: "☁️" },
   neutral: { label: "Neutral", hex: "#857a63", glyph: "◇" },
 };
 

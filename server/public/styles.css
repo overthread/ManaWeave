@@ -42,6 +42,9 @@
   --verdant: #47743f;
   --umbra: #6d4692;
   --neutral: #857a63;
+  /* draft-sheet thread colours (--crimson above is the wax-seal danger ink) */
+  --crimson-thread: #c8234c;
+  --azure-thread: #4a90d9;
 
   --font-display: "Cinzel", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-body: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -259,6 +262,8 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 .card.colour-tide    { --c: var(--tide);    --c-line: rgba(49, 98, 158, 0.55);  --c-soft: rgba(49, 98, 158, 0.09);  --c-glow: rgba(49, 98, 158, 0.28); }
 .card.colour-verdant { --c: var(--verdant); --c-line: rgba(71, 116, 63, 0.55);  --c-soft: rgba(71, 116, 63, 0.09);  --c-glow: rgba(71, 116, 63, 0.28); }
 .card.colour-umbra   { --c: var(--umbra);   --c-line: rgba(109, 70, 146, 0.55); --c-soft: rgba(109, 70, 146, 0.09); --c-glow: rgba(109, 70, 146, 0.28); }
+.card.colour-crimson { --c: var(--crimson-thread); --c-line: rgba(200, 35, 76, 0.55); --c-soft: rgba(200, 35, 76, 0.09); --c-glow: rgba(200, 35, 76, 0.28); }
+.card.colour-azure   { --c: var(--azure-thread);   --c-line: rgba(74, 144, 217, 0.55); --c-soft: rgba(74, 144, 217, 0.09); --c-glow: rgba(74, 144, 217, 0.28); }
 
 /* faint elemental sigil, like a watermark pressed into the parchment */
 .card .card-sigil {
@@ -300,7 +305,7 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   letter-spacing: 0.01em;
   color: var(--ink-strong);
 }
-.card .card-text { color: #64563c; font-size: 11px; line-height: 1.35; flex: 1; position: relative; }
+.card .card-text { color: #64563c; font-size: 11px; line-height: 1.35; flex: 1; position: relative; white-space: pre-line; }
 .card .card-stats {
   display: flex;
   justify-content: space-between;
@@ -492,6 +497,8 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 .thread.colour-tide    { --c: var(--tide);    --c-line: rgba(49, 98, 158, 0.8);  --c-soft: rgba(49, 98, 158, 0.16);  --c-glow: rgba(49, 98, 158, 0.35); }
 .thread.colour-verdant { --c: var(--verdant); --c-line: rgba(71, 116, 63, 0.8);  --c-soft: rgba(71, 116, 63, 0.16);  --c-glow: rgba(71, 116, 63, 0.35); }
 .thread.colour-umbra   { --c: var(--umbra);   --c-line: rgba(109, 70, 146, 0.8); --c-soft: rgba(109, 70, 146, 0.16); --c-glow: rgba(109, 70, 146, 0.35); }
+.thread.colour-crimson { --c: var(--crimson-thread); --c-line: rgba(200, 35, 76, 0.8); --c-soft: rgba(200, 35, 76, 0.16); --c-glow: rgba(200, 35, 76, 0.35); }
+.thread.colour-azure   { --c: var(--azure-thread);   --c-line: rgba(74, 144, 217, 0.8); --c-soft: rgba(74, 144, 217, 0.16); --c-glow: rgba(74, 144, 217, 0.35); }
 
 .thread .diamond {
   position: absolute;

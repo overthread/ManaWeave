@@ -11,7 +11,7 @@
 import type { CardDefinition } from "../../domain/card/CardDefinitions.js";
 import type { CardEffect, CostColour, CostEntry, OrientationName, ThreadColour } from "../../domain/card/Card.js";
 
-const VALID_COLOURS: readonly ThreadColour[] = ["ember", "tide", "verdant", "umbra", "neutral"];
+const VALID_COLOURS: readonly ThreadColour[] = ["ember", "tide", "verdant", "umbra", "crimson", "azure", "neutral"];
 const VALID_ORIENTATIONS: readonly OrientationName[] = ["up", "right", "down", "left"];
 
 /**
@@ -37,7 +37,7 @@ function parseCostCell(raw: string, cardColour: ThreadColour): CostEntry[] {
     if (!orientation) continue;
     const colour = colourRaw === undefined
       ? fallbackColour
-      : ((["any", "neutral", "ember", "tide", "verdant", "umbra"] as const).find((c) => c.startsWith(colourRaw)) ?? fallbackColour);
+      : ((["any", "neutral", "ember", "tide", "verdant", "umbra", "crimson", "azure"] as const).find((c) => c.startsWith(colourRaw)) ?? fallbackColour);
     out.push({ colour: colour === "neutral" ? "any" : colour, orientation });
   }
   return out.slice(0, 4);
@@ -111,7 +111,7 @@ export function csvRowsToDefinitions(category: string, rows: string[][]): CardDe
     if (!title) continue;
     const id = col(row, "card_id", "id") || slugify(title);
     const type = col(row, "type").toLowerCase() === "spell" ? "spell" : "unit";
-    const colour = col(row, "colour", "color");
+    const colour = col(row, "colour", "color").toLowerCase();
     const effectsRaw = col(row, "effects");
     const onPlayRaw = col(row, "on_play");
     const cardColour: ThreadColour = (VALID_COLOURS as readonly string[]).includes(colour) ? (colour as ThreadColour) : "neutral";
@@ -132,7 +132,8 @@ export function csvRowsToDefinitions(category: string, rows: string[][]): CardDe
       haste: /^(true|yes|1)$/i.test(col(row, "haste", "quickstride")),
       effects: parseEffectsJson(effectsRaw),
       onPlay: parseEffectsJson(onPlayRaw),
-      text: col(row, "text", "description"),
+      // The published draft sheets put rules text in an `effect` column (prose).
+      text: col(row, "text", "description", "effect"),
       rarity: col(row, "rarity") || "common",
       category,
     };
