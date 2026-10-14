@@ -125,7 +125,7 @@ function renderCatalog() {
     const badges = [def.haste ? `<span class="badge haste">Quickstride</span>` : ""].join("");
     card.innerHTML = `
       <div class="card-sigil" aria-hidden="true">${COLOURS[def.colour]?.glyph ?? "◇"}</div>
-      <div class="card-head"><span class="cost" title="${formatCostText(def.cost)} — one thread per arrow, matching colour and direction">${formatCostHtml(def.cost)}</span><span class="card-name">${def.title}</span></div>
+      <div class="card-head"><span class="cost" title="${formatCostText(def.cost)} — one thread per arrow, matching colour and direction">${formatCostHtml(def.cost, { onDark: true })}</span><span class="card-name">${def.title}</span></div>
       <div class="card-text">${def.text ?? ""}</div>
       <div class="badges">${badges}</div>
       ${stats}`;

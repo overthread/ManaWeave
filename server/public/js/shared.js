@@ -113,24 +113,32 @@ export function renderAuthHeader() {
   el.append(who, out);
 }
 
+/** `onDark` is the lifted, parchment-friendly tint of each colour for arrow
+ *  glyphs sitting on the dark ink cost badge — the base hexes vanish there. */
 export const COLOURS = {
-  crimson: { label: "Crimson", hex: "#c8234c", glyph: "🌋" },
-  azure: { label: "Azure", hex: "#4a90d9", glyph: "☁️" },
-  verdant: { label: "Verdant", hex: "#47743f", glyph: "🌿" },
-  neutral: { label: "Neutral", hex: "#857a63", glyph: "◇" },
+  crimson: { label: "Crimson", hex: "#c8234c", onDark: "#ff8ba4", glyph: "🌋" },
+  azure: { label: "Azure", hex: "#4a90d9", onDark: "#8cc7f7", glyph: "☁️" },
+  verdant: { label: "Verdant", hex: "#47743f", onDark: "#97da87", glyph: "🌿" },
+  neutral: { label: "Neutral", hex: "#857a63", onDark: "#cfc5ae", glyph: "◇" },
 };
 
 export const ORIENTATION_ARROWS = ["↑", "→", "↓", "←"];
 export const ORIENTATION_NAMES = ["up", "right", "down", "left"];
 export const ORIENTATION_INDEX = { up: 0, right: 1, down: 2, left: 3 };
 
-const entryColour = (e) => COLOURS[e?.colour]?.hex ?? COLOURS.neutral.hex;
+const entryColour = (e, onDark) => {
+  const c = COLOURS[e?.colour];
+  if (!c) return onDark ? COLOURS.neutral.onDark : COLOURS.neutral.hex;
+  return onDark ? c.onDark : c.hex;
+};
 const entryArrow = (e) => ORIENTATION_ARROWS[ORIENTATION_INDEX[e?.orientation] ?? 0] ?? "?";
 
-/** Render a cost ([{colour:"crimson",orientation:"up"},...]) as coloured arrow spans (for innerHTML). */
-export function formatCostHtml(cost) {
+/** Render a cost ([{colour:"crimson",orientation:"up"},...]) as coloured arrow spans (for innerHTML).
+ *  Pass { onDark: true } when the glyphs sit on the dark cost badge so the
+ *  lighter tint of each colour is used; light backgrounds take the base hex. */
+export function formatCostHtml(cost, opts = {}) {
   if (!Array.isArray(cost) || cost.length === 0) return "free";
-  return cost.map((e) => `<span class="oc" style="color:${entryColour(e)}">${entryArrow(e)}</span>`).join("");
+  return cost.map((e) => `<span class="oc" style="color:${entryColour(e, opts.onDark)}">${entryArrow(e)}</span>`).join("");
 }
 
 /** Plain-text rendering (for titles/tooltips): "crimson↑ crimson←". */

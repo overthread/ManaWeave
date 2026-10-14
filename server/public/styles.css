@@ -292,7 +292,9 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   flex: none;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-.card .cost .oc { display: inline-block; min-width: 1em; text-align: center; }
+/* Arrows are the whole economy — keep them big and high-contrast on the ink
+   badge (lighter on-dark tints come from formatCostHtml's onDark palette). */
+.card .cost .oc { display: inline-block; min-width: 1em; text-align: center; font-size: 13.5px; }
 .card .card-name {
   font-family: var(--font-display);
   font-weight: 700;
@@ -452,8 +454,11 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 }
 
 .loom-row {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 12px;
   background-color: var(--panel-2);
   background-image:
@@ -469,7 +474,13 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
     inset 0 0 0 4px var(--line),
     0 2px 8px rgba(77, 61, 39, 0.18);
 }
+/* The label sits docked to the row's left edge so the threads themselves
+   centre under the battlefield instead of hanging left of the row. */
 .loom-row .loom-label {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
@@ -932,6 +943,41 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 }
 .zone-viewer-grid .card { width: 100%; min-height: 150px; }
 
+/* ------------------------------------------------------------- help viewer */
+
+/* Round brass "?" on the walnut beam — same material as the primary buttons. */
+.help-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  flex: none;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  background-image: linear-gradient(180deg, #dcb05a, #96702a);
+  border: 1px solid var(--gold-deep);
+  color: #2d2107;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 250, 230, 0.6);
+}
+.help-btn:hover { background-image: linear-gradient(180deg, #e7c06a, #a37c2e); }
+.help-btn:active { transform: scale(0.92); }
+
+.help-box { max-width: min(640px, 92vw); }
+.help-body {
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #5c4f39;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px;
+  max-height: 62vh;
+}
+.help-body p { margin: 0; }
+.help-body b { color: var(--ink-strong); }
+
 .log-entries {
   overflow-y: auto;
   flex: 1;
@@ -963,8 +1009,8 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   font-family: var(--font-display);
   font-size: 40px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
   color: var(--crimson);
   text-shadow: 0 2px 0 rgba(255, 250, 236, 0.9), 0 4px 14px rgba(30, 22, 12, 0.5);
   animation: popIn 0.4s var(--ease-spring);

@@ -73,8 +73,20 @@ document.getElementById("zone-viewer").addEventListener("click", (e) => {
   if (e.target.id === "zone-viewer") gameView.closeZoneViewer();
 });
 
+// In-battle rules summary ("?" in the header). Opens above play, dismisses
+// the same ways as the pile viewer: button, scrim, or Escape.
+const helpViewer = document.getElementById("help-viewer");
+document.getElementById("help-btn").addEventListener("click", () => helpViewer.classList.add("visible"));
+document.getElementById("help-close").addEventListener("click", () => helpViewer.classList.remove("visible"));
+helpViewer.addEventListener("click", (e) => {
+  if (e.target === helpViewer) helpViewer.classList.remove("visible");
+});
+
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") gameView.cancelSelections();
+  if (e.key === "Escape") {
+    helpViewer.classList.remove("visible");
+    gameView.cancelSelections();
+  }
 });
 
 void fetchView().then((ok) => {

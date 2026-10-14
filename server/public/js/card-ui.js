@@ -18,7 +18,7 @@ export function createCardEl(card, opts = {}) {
 
   el.innerHTML = `
     <div class="card-sigil" aria-hidden="true">${COLOURS[card.colour]?.glyph ?? "◇"}</div>
-    <div class="card-head"><span class="cost" title="exhaust one thread per arrow, matching its colour and direction">${formatCostHtml(card.cost)}</span><span class="card-name">${card.name}</span></div>
+    <div class="card-head"><span class="cost" title="exhaust one thread per arrow, matching its colour and direction">${formatCostHtml(card.cost, { onDark: true })}</span><span class="card-name">${card.name}</span></div>
     <div class="card-text">${card.text ?? ""}</div>
     <div class="badges">${badges}</div>
     ${stats}`;

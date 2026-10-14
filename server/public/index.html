@@ -16,6 +16,7 @@
     <span class="tag" id="header-round"></span>
     <span class="spacer"></span>
     <span class="tag" id="header-turn"></span>
+    <button id="help-btn" class="help-btn" title="How to play">?</button>
   </header>
 
   <div class="error-banner" id="error-banner"></div>
@@ -53,6 +54,24 @@
       </div>
       <div class="zone-viewer-grid" id="zone-viewer-grid"></div>
       <div class="muted" style="font-size:11px">right-click a card to send it elsewhere</div>
+    </div>
+  </div>
+
+  <div class="zone-viewer" id="help-viewer">
+    <div class="zone-viewer-box help-box">
+      <div class="zone-viewer-head">
+        <span>How to play</span>
+        <button id="help-close">✕ Close</button>
+      </div>
+      <div class="help-body">
+        <p><b>Goal:</b> bring the enemy weaver from 20 life down to 0. You are a weaver — the four threads hanging in your loom are your only resource.</p>
+        <p><b>Threads pay for everything.</b> A card's cost is a row of coloured arrows (e.g. 🌋↑ 🌋←). Each arrow is paid by flipping one <i>ready</i> thread that matches <b>both the colour and the direction</b>. All your threads stand back up at the start of your round.</p>
+        <p><b>Weaving:</b> threads start pointing <b>up</b>, so costs with sideways arrows (→ ↓ ←) must be prepared ahead — once per round, in the weave step, you may rotate one thread 90°.</p>
+        <p><b>Your round:</b> draw a card → <b>main step</b> (play cards, move back-row units forward, attack — in any order) → optional <b>weave step</b> → end round.</p>
+        <p><b>Attacking:</b> click the ⚔ badge on a front-row unit. That exhausts the unit and declares the combat — the damage itself is applied by hand (see below). Defender priority: enemy front unit in the lane first, else the back unit, else the enemy weaver.</p>
+        <p><b>By hand:</b> the engine never resolves card effects or combat damage. <b>Right-click any card, thread, deck or pile</b> for a menu — deal damage, adjust stats, rotate/excite threads, draw, discard, move cards between zones. Adjust life with the −/+ buttons on either player bar. Manual actions are free: either weaver, any time.</p>
+        <p class="muted">Full rules reference: docs/game-design.md in the repository.</p>
+      </div>
     </div>
   </div>
 
