@@ -471,6 +471,58 @@ console.log("\n— Threadlings: sprout, sacrifice payment, animate —");
   check("animated card sent to hand stays a card", m1.players.p1!.hand.some((c) => c.id === realAnim.id) && loomsOf(m1).p1!.length === 4);
 }
 
+console.log("\n— excite & unleash —");
+{
+  type Loom = { id: string; colour: string; orientation: number; exhausted?: boolean; token?: boolean; excite?: number }[];
+  const loomsOf = (s: ReturnType<typeof newGame>) => s.metadata.looms as Record<string, Loom>;
+
+  // Excite: a token sits on the thread until unleashed.
+  const state = newGame();
+  const e1 = engine.submitAction(state, { type: "manual_action", gameId: state.gameId, playerId: "p2", effect: { kind: "excite_thread" }, targetThreadId: "p1-thread-1" });
+  check("excite puts a token on the thread (fired by the enemy — unrestricted)", loomsOf(e1).p1!.find((t) => t.id === "p1-thread-1")!.excite === 1);
+  const e2 = engine.submitAction(e1, { type: "manual_action", gameId: e1.gameId, playerId: "p1", effect: { kind: "excite_thread" }, targetThreadId: "p1-thread-1" });
+  check("excite tokens stack", loomsOf(e2).p1!.find((t) => t.id === "p1-thread-1")!.excite === 2);
+  check("exciting does not exhaust the thread", loomsOf(e2).p1!.find((t) => t.id === "p1-thread-1")!.exhausted !== true);
+  const exciteView = sanitizeStateForPlayer(e2, "p2", ruleSet);
+  check("excite count ships to the client view (looms are public)", (exciteView.looms.p1 ?? []).find((t) => t.id === "p1-thread-1")!.excite === 2);
+
+  // Unleash spends a token; unleashing an unexcited thread is rejected.
+  const u1 = engine.submitAction(e2, { type: "manual_action", gameId: e2.gameId, playerId: "p1", effect: { kind: "unleash_thread" }, targetThreadId: "p1-thread-1" });
+  check("unleash spends one excite token", loomsOf(u1).p1!.find((t) => t.id === "p1-thread-1")!.excite === 1);
+  expectThrow("unleash without a token rejected", () =>
+    engine.submitAction(u1, { type: "manual_action", gameId: u1.gameId, playerId: "p1", effect: { kind: "unleash_thread" }, targetThreadId: "p1-thread-2" }), "no excite token");
+
+  // An animated thread carries its excite tokens; death returns them with it.
+  const anim = newGame();
+  const x1 = engine.submitAction(anim, { type: "manual_action", gameId: anim.gameId, playerId: "p1", effect: { kind: "excite_thread", amount: 2 }, targetThreadId: "p1-thread-1" });
+  const x2 = engine.submitAction(x1, { type: "manual_action", gameId: x1.gameId, playerId: "p1", effect: { kind: "animate_thread" }, targetThreadId: "p1-thread-1", targetLane: 0, targetRow: "front" });
+  check("animated thread embodies its excite tokens", (meta(x2.players.p1!.battlefield[0]!).animatedThread as { excite?: number } | undefined)?.excite === 2);
+  const x3 = engine.submitAction(x2, { type: "manual_action", gameId: x2.gameId, playerId: "p2", effect: { kind: "damage_unit", amount: 2 }, targetCardId: x2.players.p1!.battlefield[0]!.id });
+  check("a returning thread brings its excite tokens back", loomsOf(x3).p1!.find((t) => t.id === "p1-thread-1")!.excite === 2);
+}
+
+console.log("\n— sacrificing Threadlings in the loom —");
+{
+  type Loom = { id: string; colour: string; orientation: number; exhausted?: boolean; token?: boolean; excite?: number }[];
+  const loomsOf = (s: ReturnType<typeof newGame>) => s.metadata.looms as Record<string, Loom>;
+
+  const state = newGame();
+  const s1 = engine.submitAction(state, { type: "manual_action", gameId: state.gameId, playerId: "p1", effect: { kind: "add_token", token: "threadling" }, targetPlayerId: "p1" });
+  const tl = loomsOf(s1).p1!.find((t) => t.token)!;
+  check("loom holds the sprouted Threadling", loomsOf(s1).p1!.length === 5 && !!tl);
+  const s2 = engine.submitAction(s1, { type: "manual_action", gameId: s1.gameId, playerId: "p2", effect: { kind: "sacrifice_threadling" }, targetThreadId: tl.id });
+  check("sacrifice removes the Threadling from the loom (fired by the enemy — unrestricted)", loomsOf(s2).p1!.length === 4 && !loomsOf(s2).p1!.some((t) => t.id === tl.id));
+  expectThrow("sacrificing a real thread rejected", () =>
+    engine.submitAction(s2, { type: "manual_action", gameId: s2.gameId, playerId: "p1", effect: { kind: "sacrifice_threadling" }, targetThreadId: "p1-thread-1" }), "threadling");
+
+  // An excited Threadling sacrifice just removes it — its tokens vanish with it.
+  const s3 = engine.submitAction(s2, { type: "manual_action", gameId: s2.gameId, playerId: "p1", effect: { kind: "add_token", token: "threadling" }, targetPlayerId: "p1" });
+  const tl2 = loomsOf(s3).p1!.find((t) => t.token)!;
+  const s4 = engine.submitAction(s3, { type: "manual_action", gameId: s3.gameId, playerId: "p1", effect: { kind: "excite_thread" }, targetThreadId: tl2.id });
+  const s5 = engine.submitAction(s4, { type: "manual_action", gameId: s4.gameId, playerId: "p1", effect: { kind: "sacrifice_threadling" }, targetThreadId: tl2.id });
+  check("sacrificing an excited Threadling removes it (tokens go with it)", loomsOf(s5).p1!.length === 4 && !loomsOf(s5).p1!.some((t) => t.id === tl2.id));
+}
+
 console.log("\n— csv catalog mapping —");
 {
   // Mirrors the published draft sheets: prose `effect` column, UPPERCASE colours,

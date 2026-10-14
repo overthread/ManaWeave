@@ -65,7 +65,7 @@ export interface ManualAction extends BaseGameAction {
   readonly effect: CardEffect; // kind + amount/atk/hp as applicable
   readonly targetCardId?: string; // unit-targeted kinds
   readonly targetPlayerId?: string; // weaver-targeted kinds (damage_face/heal_face/draw/purge_deck_top/add_token)
-  readonly targetThreadId?: string; // ready_thread / rotate_thread / animate_thread
+  readonly targetThreadId?: string; // ready_thread / rotate_thread / animate_thread / excite_thread / unleash_thread / sacrifice_threadling
   readonly targetDirection?: WeaveDirection; // rotate_thread
   readonly targetLane?: number; // animate_thread slot
   readonly targetRow?: LaneRow; // animate_thread slot

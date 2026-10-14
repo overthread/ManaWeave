@@ -5,10 +5,11 @@
  * final say on legality.
  *
  * Manual resolution has no panel: right-click any card, thread or pile to get a
- * context menu (rotate threads, adjust unit power/health, deal damage, discard,
- * deck actions, send cards between areas, adjust life with −/+). Manual actions
- * are unrestricted by design — either weaver, any time. Stat changes render as
- * floating +N / −N indicators, computed by diffing consecutive pushed views.
+ * context menu (rotate / excite threads, adjust unit power/health, deal damage,
+ * discard, deck actions, send cards between areas, adjust life with −/+). Manual
+ * actions are unrestricted by design — either weaver, any time. Stat changes
+ * render as floating +N / −N indicators, computed by diffing consecutive pushed
+ * views.
  */
 import { createCardEl } from "./card-ui.js";
 import { createThreadEl } from "./loom-ui.js";
@@ -172,7 +173,11 @@ export function createGameView(deps) {
 
   function threadMenu(t, e) {
     const items = [
-      { header: t.token ? "Threadling — colourless token thread" : `${COLOURS[t.colour]?.label ?? "?"} thread — pointing ${ORIENTATION_NAMES[t.orientation] ?? "up"}` },
+      {
+        header: t.token
+          ? `Threadling — colourless token thread${t.excite > 0 ? ` · ✦${t.excite}` : ""}`
+          : `${COLOURS[t.colour]?.label ?? "?"} thread — pointing ${ORIENTATION_NAMES[t.orientation] ?? "up"}${t.excite > 0 ? ` · ✦${t.excite}` : ""}`,
+      },
       { label: "↻ rotate clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "cw" }) },
       { label: "↺ rotate counter-clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "ccw" }) },
     ];
@@ -181,6 +186,11 @@ export function createGameView(deps) {
     } else {
       items.push({ label: "▼ exhaust (flip)", onClick: () => void submitManual({ kind: "exhaust_thread" }, { targetThreadId: t.id }) });
     }
+    // Excite: a token sits on the thread until unleashed (Unleash spends it).
+    items.push({ label: "✦ excite (add token)", onClick: () => void submitManual({ kind: "excite_thread" }, { targetThreadId: t.id }) });
+    if (t.excite > 0) {
+      items.push({ label: "✧ unleash (spend token)", hint: `✦${t.excite} on this thread`, onClick: () => void submitManual({ kind: "unleash_thread" }, { targetThreadId: t.id }) });
+    }
     // Animate: the thread becomes a unit (1/1 token / 2/2 real thread) on its owner's side.
     const animItems = animateItems(t);
     items.push(
@@ -188,6 +198,10 @@ export function createGameView(deps) {
         ? { label: "⚔ Animate…", hint: `becomes a ${t.token ? "1/1" : "2/2"}`, sub: animItems }
         : { label: "⚔ Animate…", hint: "no free slots", disabled: true },
     );
+    // A Threadling can be sacrificed outright — it leaves the loom (real threads cannot).
+    if (t.token) {
+      items.push({ label: "🧵 sacrifice Threadling", hint: "leaves the loom", danger: true, onClick: () => void submitManual({ kind: "sacrifice_threadling" }, { targetThreadId: t.id }) });
+    }
     // The round's real weave, offered alongside when this thread is legally weaveable.
     for (const direction of ["cw", "ccw"]) {
       if (actions("weave_thread").some((a) => a.threadId === t.id && a.direction === direction)) {

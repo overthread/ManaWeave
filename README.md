@@ -22,7 +22,7 @@ An online 2-player card battler built on the card-battler starter kit architectu
 - **Card effects are manual.** The engine never resolves spells, "when woven" triggers, or combat damage — playing a card just pays its cost and places it. Players apply every effect themselves through **right-click context menus** — unrestricted: **either weaver, any time**, even outside their turn. The server validates targets/amounts and tracks all state changes. Every life / power / health change shows as a floating **+N / −N** indicator.
   - **Right-click a unit**: deal damage, adjust power & health, return to hand, destroy, or send to another area.
   - **Right-click a hand card**: discard it, or send it to the deck top/bottom or purge.
-  - **Right-click a thread** (either loom): rotate 90° cw/ccw, ready or exhaust it.
+  - **Right-click a thread** (either loom): rotate 90° cw/ccw, ready or exhaust it, **excite** it (add an excite token — ✦ badge) or **unleash** (spend one). A Threadling can also be **sacrificed** — removed from the loom outright.
   - **Right-click a deck** (either side): draw N, purge top N, shuffle — your own deck can also *look at top N* (private peek panel that auto-refreshes).
   - **Discard / purge piles** sit on each player's bar next to the deck; click one to view its cards, right-click a card inside to send it anywhere (hand, deck top/bottom, the other pile).
   - **Weaver life**: **− / +** buttons on each player bar (±1 per click).
@@ -43,7 +43,7 @@ The app has **accounts** (playtest-grade login — username + password, no email
 1. **Register** (`/login.html` — the lobby redirects here when a tab has no session).
 2. **Build a deck** (`/decks.html`): pick your 4 loom thread colours, add cards (or load a sample), save. Loading a saved deck and saving again updates it in place.
 3. **Lobby** (`/lobby.html`): create a room, share the code; both weavers pick decks; the host starts.
-4. **Battle**: click a hand card → its threads auto-pay (click your threads to change payment — each must match an arrow's colour and direction) → click a free slot for units, or Cast for spells. Attack by clicking the **⚔ badge** on a front unit (it exhausts; clicking the card body never attacks); click back units to move up. Resolve combat damage and card effects by **right-clicking** whatever you're resolving — units (damage / power / health steppers), threads (rotate / ready / exhaust), your deck (draw / peek / shuffle / purge), hand cards (discard), or the discard & purge piles (send cards between areas). Adjust either weaver's life with the **− / +** buttons on the player bars.
+4. **Battle**: click a hand card → its threads auto-pay (click your threads to change payment — each must match an arrow's colour and direction) → click a free slot for units, or Cast for spells. Attack by clicking the **⚔ badge** on a front unit (it exhausts; clicking the card body never attacks); click back units to move up. Resolve combat damage and card effects by **right-clicking** whatever you're resolving — units (damage / power / health steppers), threads (rotate / ready / exhaust / excite / unleash), your deck (draw / peek / shuffle / purge), hand cards (discard), or the discard & purge piles (send cards between areas). Adjust either weaver's life with the **− / +** buttons on the player bars.
 
 **Moving between lobby and deck builder:** the Deck Builder link opens in the same tab, so the trip never asks you to log in again — and when you come back, the lobby re-opens your room automatically (from the tab's own memory on refresh, or from a per-account reminder in `localStorage` in a fresh tab or after a re-login — the server re-seats you by account). No room code re-typing either way.
 
@@ -67,7 +67,7 @@ Quick test without decks: `curl -X POST http://localhost:3000/api/games -H "Cont
 | `npm run dev` | Dev server with watch (tsx) |
 | `npm run build` / `npm start` | Compile and run production build |
 | `npm run check` | TypeScript typecheck |
-| `npm run test:domain` | 91 headless ruleset tests (threads, orientation costs, combat-as-declaration, manual actions & zone moves, deck peeks, weave, win conditions, sanitization, CSV catalog mapping) |
+| `npm run test:domain` | 122 headless ruleset tests (threads, orientation costs, combat-as-declaration, manual actions & zone moves, deck peeks, excite/unleash, Threadling sacrifice, weave, win conditions, sanitization, CSV catalog mapping) |
 
 ## Architecture (from the starter kit)
 

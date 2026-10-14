@@ -566,6 +566,16 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.thread .excite-tag {
+  position: absolute;
+  bottom: 1px;
+  right: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 1px 2px rgba(77, 61, 39, 0.45);
+  z-index: 2;
+}
 
 .battlefield {
   display: grid;

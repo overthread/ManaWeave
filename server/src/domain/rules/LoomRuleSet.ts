@@ -42,6 +42,8 @@ export interface Thread {
   exhausted: boolean;
   /** Threadling token thread: colourless, sacrificed (not exhausted) to pay any one arrow. */
   token?: boolean;
+  /** Excite tokens sitting on this thread, spent by Unleash (§6). */
+  excite?: number;
 }
 
 export const ORIENTATION_NAMES = ["up", "right", "down", "left"] as const;
@@ -65,7 +67,8 @@ export function parseLooms(value: unknown): LoomsMetadata | null {
       if (typeof th.id !== "string") return null;
       if (typeof th.colour !== "string") return null;
       const orientation = typeof th.orientation === "number" ? Math.max(0, Math.min(3, Math.floor(th.orientation))) : 0;
-      list.push({ id: th.id, colour: th.colour as ThreadColour, orientation, exhausted: th.exhausted === true, token: th.token === true });
+      const excite = typeof th.excite === "number" && Number.isFinite(th.excite) ? Math.max(0, Math.min(999, Math.floor(th.excite))) : 0;
+      list.push({ id: th.id, colour: th.colour as ThreadColour, orientation, exhausted: th.exhausted === true, token: th.token === true, excite });
     }
     out[pid] = list;
   }
@@ -226,7 +229,7 @@ function payableCombos(loom: readonly Thread[], card: Card): Thread[][] {
 
 /** Effect kinds whose manual application targets a battlefield unit. */
 const UNIT_TARGET_KINDS = new Set(["damage_unit", "buff_unit", "return_to_hand", "destroy_unit"]);
-const THREAD_TARGET_KINDS = new Set(["ready_thread", "exhaust_thread", "rotate_thread", "animate_thread"]);
+const THREAD_TARGET_KINDS = new Set(["ready_thread", "exhaust_thread", "rotate_thread", "animate_thread", "excite_thread", "unleash_thread", "sacrifice_threadling"]);
 const PLAYER_TARGET_KINDS = new Set(["damage_face", "heal_face", "draw", "purge_deck_top", "peek_deck", "shuffle_deck", "add_token"]);
 /** Targets a card in any zone of either weaver (send-to-area moves). */
 const ANY_CARD_TARGET_KINDS = new Set(["move_card"]);
@@ -247,6 +250,9 @@ const ALL_EFFECT_KINDS = new Set([
   "move_card",
   "add_token",
   "animate_thread",
+  "excite_thread",
+  "unleash_thread",
+  "sacrifice_threadling",
 ]);
 
 const ZONE_KEYS = ["hand", "deck", "graveyard", "exile"] as const;
@@ -674,6 +680,10 @@ export class LoomRuleSet implements RuleSet {
         this.applyAnimateThread(state, action);
         return;
       }
+      if (effect.kind === "sacrifice_threadling") {
+        this.applySacrificeThreadling(state, action);
+        return;
+      }
       const thread = this.findThread(state, action.targetThreadId);
       switch (effect.kind) {
         case "ready_thread":
@@ -688,6 +698,19 @@ export class LoomRuleSet implements RuleSet {
           if (action.targetDirection !== "cw" && action.targetDirection !== "ccw") throw new GameRuleViolationError("Choose a rotation direction.");
           thread.orientation = (thread.orientation + (action.targetDirection === "cw" ? 1 : 3)) % 4;
           this.log(state, `⟡ ${actor} turns a ${thread.colour} thread to point ${ORIENTATION_NAMES[thread.orientation]}.`);
+          break;
+        }
+        case "excite_thread": {
+          const n = Math.max(1, int(effect.amount) || 1);
+          thread.excite = Math.min(999, (thread.excite ?? 0) + n);
+          this.log(state, `⟡ ${actor} excites a ${thread.colour} thread (${thread.excite} token(s) on it).`);
+          break;
+        }
+        case "unleash_thread": {
+          const n = Math.max(1, int(effect.amount) || 1);
+          if ((thread.excite ?? 0) <= 0) throw new GameRuleViolationError("No excite token on that thread.");
+          thread.excite = Math.max(0, (thread.excite ?? 0) - n);
+          this.log(state, `⟡ ${actor} unleashes ${n} token(s) from a ${thread.colour} thread (${thread.excite} left).`);
           break;
         }
       }
@@ -838,7 +861,7 @@ export class LoomRuleSet implements RuleSet {
         attackedThisTurn: false,
         movedThisTurn: false,
         healthRemaining: stats,
-        animatedThread: { id: loc.thread.id, colour: loc.thread.colour, orientation: loc.thread.orientation, token: isToken },
+        animatedThread: { id: loc.thread.id, colour: loc.thread.colour, orientation: loc.thread.orientation, token: isToken, excite: loc.thread.excite ?? 0 },
       },
     );
     loc.loom.splice(loc.loom.indexOf(loc.thread), 1);
@@ -848,6 +871,19 @@ export class LoomRuleSet implements RuleSet {
       state,
       `⟡ ${actor} animates ${isToken ? "a Threadling" : `a ${loc.thread.colour} thread`} into ${owner === state.players[action.playerId] ? "their" : `${owner.name}'s`} lane ${lane + 1} (${row} row) as a ${stats}/${stats}.`,
     );
+  }
+
+  /**
+   * Sacrifice (by hand): a Threadling leaves its loom outright — the same verb
+   * payment uses when it covers an arrow, fired on its own. Real threads cannot
+   * be sacrificed away (the loom must keep its four woven threads).
+   */
+  private applySacrificeThreadling(state: GameState, action: ManualAction): void {
+    const loc = this.findThreadWithOwner(state, action.targetThreadId);
+    if (loc.thread.token !== true) throw new GameRuleViolationError("Only a Threadling can be sacrificed from the loom.");
+    loc.loom.splice(loc.loom.indexOf(loc.thread), 1);
+    const actor = this.nameOf(state, action.playerId);
+    this.log(state, `⟡ ${actor} sacrifices a Threadling from ${loc.pid === action.playerId ? "their own" : `${state.players[loc.pid]!.name}'s`} loom.`);
   }
 
   private playerTarget(state: GameState, playerId: string | undefined): PlayerState {
@@ -974,6 +1010,7 @@ export class LoomRuleSet implements RuleSet {
             orientation: anim.orientation,
             exhausted: false,
             token: anim.token,
+            excite: anim.excite,
           });
           this.log(state, `${d.name} unravels — its thread returns to ${p.name}'s loom.`);
         } else {
@@ -986,7 +1023,7 @@ export class LoomRuleSet implements RuleSet {
   }
 
   /** The loom thread a card embodies (Animate), if any — drives the death-return. */
-  private parseAnimatedThread(card: Card): { id: string; colour: ThreadColour; orientation: number; token?: boolean } | null {
+  private parseAnimatedThread(card: Card): { id: string; colour: ThreadColour; orientation: number; token?: boolean; excite?: number } | null {
     const v = meta(card).animatedThread;
     if (!v || typeof v !== "object") return null;
     const a = v as Partial<Thread>;
@@ -996,6 +1033,7 @@ export class LoomRuleSet implements RuleSet {
       colour: a.colour as ThreadColour,
       orientation: Math.max(0, Math.min(3, Math.floor(a.orientation))),
       token: a.token === true,
+      excite: typeof a.excite === "number" ? Math.max(0, Math.floor(a.excite)) : 0,
     };
   }
 

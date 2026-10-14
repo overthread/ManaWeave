@@ -40,7 +40,10 @@ export type EffectKind =
   | "shuffle_deck" // shuffle a weaver's deck
   | "move_card" // send the targeted card to {zone} (deck uses {position} top/bottom)
   | "add_token" // sprout a token: {token:"threadling"} into the target weaver's loom (Sprout)
-  | "animate_thread"; // move a loom thread to the battlefield as a unit (Animate)
+  | "animate_thread" // move a loom thread to the battlefield as a unit (Animate)
+  | "excite_thread" // put an excite token on a loom thread (Excite)
+  | "unleash_thread" // spend an excite token from a loom thread (Unleash)
+  | "sacrifice_threadling"; // remove a Threadling token thread from its loom outright
 
 export interface CardEffect {
   readonly kind: EffectKind;
