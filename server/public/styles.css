@@ -396,6 +396,35 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 .attack-btn:hover { transform: scale(1.18); box-shadow: 0 3px 10px rgba(46, 34, 20, 0.4), inset 0 1px 0 rgba(255, 250, 230, 0.6); }
 .attack-btn:active { transform: scale(0.92); }
 
+/* Crosshair badge: marking a target starts from this corner icon. It only
+   appears while the card is hovered (visual, no game effect). */
+.target-btn {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background-image: linear-gradient(180deg, #dcb05a, #96702a);
+  border: 1px solid var(--gold-deep);
+  color: #2d2107;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  opacity: 0;
+  transform: scale(0.8);
+  box-shadow: 0 2px 6px rgba(46, 34, 20, 0.35), inset 0 1px 0 rgba(255, 250, 230, 0.6);
+  transition: opacity 0.15s ease, transform 0.16s var(--ease-spring), box-shadow 0.16s ease;
+}
+.card:hover .target-btn { opacity: 1; transform: scale(1); }
+.target-btn:hover { transform: scale(1.18) !important; box-shadow: 0 3px 10px rgba(46, 34, 20, 0.4), inset 0 1px 0 rgba(255, 250, 230, 0.6); }
+.target-btn:active { transform: scale(0.92) !important; }
+
 .card.facedown {
   background-image:
     radial-gradient(90% 60% at 50% 30%, rgba(161, 119, 46, 0.1), transparent 70%),
@@ -1182,6 +1211,52 @@ details.rules summary { cursor: pointer; color: var(--gold-deep); letter-spacing
 details.rules ul { margin: 8px 0; padding-left: 20px; color: #5c4f39; font-size: 13px; line-height: 1.55; }
 
 /* ------------------------------------------------------------ animations */
+
+/* ------------------------------------------- targeting arrows (visual only) */
+
+/* Fixed, pointer-transparent overlay spanning the viewport: arrows are drawn
+   between the on-screen rectangles of the source card and its marked unit. */
+#target-arrows {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 40;
+}
+#target-arrows .target-arrow-casing {
+  fill: none;
+  stroke: rgba(34, 26, 14, 0.5);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+#target-arrows .target-arrow {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  marker-end: url(#target-arrowhead);
+  filter: drop-shadow(0 1px 2px rgba(46, 34, 20, 0.4));
+}
+#target-arrows #target-preview {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 7 7;
+  opacity: 0.9;
+  marker-end: url(#target-arrowhead-preview);
+  animation: arrowMarch 0.9s linear infinite;
+}
+@keyframes arrowMarch {
+  to { stroke-dashoffset: -14; }
+}
+/* While marking a target the whole board is a crosshair. */
+body.targeting-mode,
+body.targeting-mode #battlefield .card,
+body.targeting-mode #spell-stack .card {
+  cursor: crosshair;
+}
 
 @keyframes riseIn {
   from { opacity: 0; transform: translateY(6px); }

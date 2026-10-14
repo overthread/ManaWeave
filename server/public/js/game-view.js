@@ -10,6 +10,10 @@
  * actions are unrestricted by design — either weaver, any time. Stat changes
  * render as floating +N / −N indicators, computed by diffing consecutive pushed
  * views.
+ *
+ * Targeting arrows are visual only: press T over a card in play (or click its
+ * 🎯 hover badge), then click a unit — a server-synced arrow shows BOTH weavers
+ * what it targets, and vanishes when the card leaves play.
  */
 import { createCardEl } from "./card-ui.js";
 import { createThreadEl } from "./loom-ui.js";
@@ -18,6 +22,7 @@ import { showContextMenu, closeContextMenu } from "./context-menu.js";
 import { COLOURS, ORIENTATION_NAMES, formatCostHtml, formatCostText } from "./shared.js";
 
 const $ = (id) => document.getElementById(id);
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 export function createGameView(deps) {
   const { submitAction } = deps;
@@ -25,11 +30,16 @@ export function createGameView(deps) {
   let view = null;
   let cast = null; // { cardId, threads: Set<string> } while casting a hand card
   let weavePending = null; // { threadId } while choosing a weave direction
+  let mulliganPicks = new Set(); // card ids picked to shuffle back during the opening mulligan
   let snapshotKey = "";
   let prevStats = null; // { life: {pid}, units: {cardId: {power, health}} } for delta floats
+  let targeting = null; // { sourceCardId, sourceName } while marking a target unit (visual arrow)
+  const pointer = { x: 0, y: 0 }; // last mouse position — T-key source lookup + live preview arrow
 
   const enemyIdOf = (v) => Object.keys(v.players).find((id) => id !== v.you);
   const myTurn = () => view && view.turnPlayerId === view.you && !view.winnerPlayerId;
+  /** True while the viewer may still pick opening-hand cards to shuffle back. */
+  const mulliganActive = () => !!view && view.phase === "mulligan" && !view.winnerPlayerId && !(view.mulliganed ?? {})[view.you];
 
   const actions = (type) => (view?.legalActions ?? []).filter((a) => a.type === type);
   const playActionsFor = (cardId) => actions("play_card").filter((a) => a.cardId === cardId);
@@ -70,6 +80,8 @@ export function createGameView(deps) {
     await submitAction(partial);
     cast = null;
     weavePending = null;
+    targeting = null;
+    mulliganPicks.clear();
     // The WS push for this action may have rendered while `cast` was still set
     // (same turn+phase = unchanged snapshot key, so it kept the mid-cast UI:
     // no attack badges / clickable units). Repaint now that it's cleared.
@@ -132,6 +144,50 @@ export function createGameView(deps) {
     render();
   }
 
+  // ------------------------------------------------------- targeting (visual)
+
+  /** Arrows the given card in play is currently drawing (visual only). */
+  const arrowsFrom = (cardId) => (view?.targetArrows ?? []).filter((a) => a.sourceCardId === cardId);
+
+  function startTargeting(cardId, name) {
+    if (!view || over()) return;
+    targeting = { sourceCardId: cardId, sourceName: name };
+    render();
+  }
+
+  function cancelTargeting() {
+    if (!targeting) return;
+    targeting = null;
+    render();
+  }
+
+  async function submitTarget(unitId) {
+    const source = targeting;
+    if (!source) return;
+    // One arrow per source — the server toggles it off when re-marking the same unit.
+    await submit({ type: "manual_action", effect: { kind: "set_target" }, sourceCardId: source.sourceCardId, targetCardId: unitId });
+  }
+
+  function clearTargets(cardId) {
+    return submitManual({ kind: "clear_target" }, { sourceCardId: cardId });
+  }
+
+  /** The card in play (battlefield unit or stack spell) under a viewport point, if any. */
+  function cardInPlayAt(x, y) {
+    const hit = document.elementFromPoint(x, y);
+    const cardEl = hit?.closest?.(".card[data-card-id]");
+    if (!cardEl || !cardEl.closest("#battlefield, #spell-stack")) return null;
+    const id = cardEl.dataset.cardId;
+    for (const p of Object.values(view?.players ?? {})) {
+      const unit = (p.battlefield ?? []).find((c) => c.id === id);
+      if (unit) return { id, name: unit.name };
+    }
+    for (const entry of view?.spellStack ?? []) {
+      if (entry.card.id === id) return { id, name: entry.card.name };
+    }
+    return null;
+  }
+
   // ---------------------------------------------------------- context menus
 
   /** Destinations for "Send to…", minus the zone the card is already in. */
@@ -149,8 +205,13 @@ export function createGameView(deps) {
 
   function unitMenu(unit, e) {
     const target = { targetCardId: unit.id };
-    showContextMenu(e.clientX, e.clientY, [
-      { header: `${unit.name} — ${unit.power}⚔ / ${unit.health}❤` },
+    const items = [{ header: `${unit.name} — ${unit.power}⚔ / ${unit.health}❤` }];
+    // Visual targeting: mark what this unit is aiming at (or clear its arrow).
+    if (!over()) {
+      items.push({ label: "🎯 target a unit…", hint: "visual arrow", onClick: () => startTargeting(unit.id, unit.name) });
+      if (arrowsFrom(unit.id).length > 0) items.push({ label: "🚫 clear targeting", onClick: () => void clearTargets(unit.id) });
+    }
+    items.push(
       {
         type: "stepper", label: "⚔ damage", value: 1, min: 1, max: 99, applyLabel: "Deal",
         onApply: (n) => void submitManual({ kind: "damage_unit", amount: n }, target),
@@ -166,7 +227,8 @@ export function createGameView(deps) {
       { label: "⤴ return to owner's hand", onClick: () => void submitManual({ kind: "return_to_hand" }, target) },
       { label: "☠ destroy", danger: true, hint: "to discard", onClick: () => void submitManual({ kind: "destroy_unit" }, target) },
       { label: "Send to…", sub: sendToItems(unit, "battlefield") },
-    ]);
+    );
+    showContextMenu(e.clientX, e.clientY, items);
   }
 
   function handMenu(card, e) {
@@ -338,8 +400,15 @@ export function createGameView(deps) {
    * stack spell to resolve it, counter it, or send it elsewhere.
    */
   function stackMenu(entry, e) {
-    showContextMenu(e.clientX, e.clientY, [
+    const items = [
       { header: `${entry.card.name} — cast by ${entry.casterId === view.you ? "you" : entry.casterName}` },
+    ];
+    // Visual targeting: mark what this spell is aiming at before resolving it.
+    if (!over()) {
+      items.push({ label: "🎯 target a unit…", hint: "visual arrow", onClick: () => startTargeting(entry.card.id, entry.card.name) });
+      if (arrowsFrom(entry.card.id).length > 0) items.push({ label: "🚫 clear targeting", onClick: () => void clearTargets(entry.card.id) });
+    }
+    items.push(
       {
         label: "✔ Resolve → discard",
         hint: "apply its effect by hand, then it leaves the stack",
@@ -352,7 +421,8 @@ export function createGameView(deps) {
         onClick: () => void submitManual({ kind: "resolve_spell", countered: true }, { targetCardId: entry.card.id }),
       },
       { label: "Send to…", sub: sendToItems(entry.card, "stack") },
-    ]);
+    );
+    showContextMenu(e.clientX, e.clientY, items);
   }
 
   const ordinal = (n) => {
@@ -401,6 +471,18 @@ export function createGameView(deps) {
       caster.textContent = `${entry.casterId === view.you ? "you" : entry.casterName} cast${entry.card.reaction ? " · Reaction" : ""}`;
       cell.appendChild(caster);
       const el = createCardEl(entry.card, {});
+      el.title += "\nT + click a unit: mark this spell's target (visual arrow) · right-click: resolve / counter / send";
+      if (!over()) {
+        const btn = document.createElement("button");
+        btn.className = "target-btn";
+        btn.textContent = "🎯";
+        btn.title = "mark a target — click, then click a unit (draws a visual arrow; no game effect)";
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startTargeting(entry.card.id, entry.card.name);
+        });
+        el.appendChild(btn);
+      }
       el.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         stackMenu(entry, e);
@@ -475,7 +557,7 @@ export function createGameView(deps) {
       lifeBox.append(minus, life, plus);
       el.appendChild(lifeBox);
 
-      if (view.turnPlayerId === p.id && !view.winnerPlayerId) {
+      if (view.turnPlayerId === p.id && !view.winnerPlayerId && view.phase !== "mulligan") {
         const flag = document.createElement("span");
         flag.className = "turn-flag";
         flag.textContent = "✦ weaving now";
@@ -568,18 +650,23 @@ export function createGameView(deps) {
       myId: view.you,
       isSlotActive: (lane, row) => isUnitCast && playActionsFor(cast.cardId).some((a) => a.laneIndex === lane && a.row === row),
       isUnitClickable: (unit) => {
+        if (targeting) return unit.id !== targeting.sourceCardId; // any unit on either side may be marked
         if (unit.owner === view.you && myTurn() && view.phase === "main" && !cast) {
           if (unit.row === "back") return actions("move_unit").some((a) => a.cardId === unit.id);
         }
         return false;
       },
+      isUnitTargetable: (unit) => !!targeting && unit.id !== targeting.sourceCardId,
       canAttackUnit: (unit) =>
+        !targeting &&
         unit.owner === view.you &&
         unit.row === "front" &&
         myTurn() &&
         view.phase === "main" &&
         !cast &&
         actions("attack").some((a) => a.cardId === unit.id),
+      canTargetUnit: () => !over(),
+      onTargetClick: (unit) => startTargeting(unit.id, unit.name),
       onSlotClick: async (lane, row) => {
         if (!cast) return;
         await submitPlay({ laneIndex: lane, row });
@@ -588,6 +675,12 @@ export function createGameView(deps) {
         await submit({ type: "attack", cardId: unit.id });
       },
       onUnitClick: async (unit) => {
+        if (targeting) {
+          // Clicking the marking card itself cancels; any other unit is marked.
+          if (unit.id === targeting.sourceCardId) cancelTargeting();
+          else await submitTarget(unit.id);
+          return;
+        }
         if (!myTurn() || view.phase !== "main" || cast) return;
         if (unit.owner !== view.you) return;
         if (unit.row === "back" && actions("move_unit").some((a) => a.cardId === unit.id)) {
@@ -603,17 +696,29 @@ export function createGameView(deps) {
     const hand = $("hand");
     hand.replaceChildren();
     const me = view.players[view.you];
+    const picking = mulliganActive();
     const playable = new Set(actions("play_card").map((a) => a.cardId));
     for (const card of me?.hand ?? []) {
       // legalActions only offers payable casts: all cards on your main step,
-      // Reaction spells outside your round.
+      // Reaction spells outside your round. During the mulligan every card is
+      // click-to-pick instead (picked cards get shuffled back into the deck).
       const isPlayable = playable.has(card.id) && !over();
       const el = createCardEl(card, {
-        clickable: isPlayable,
+        clickable: isPlayable || picking,
         playable: isPlayable,
-        selected: cast?.cardId === card.id,
+        selected: cast?.cardId === card.id || mulliganPicks.has(card.id),
       });
       el.addEventListener("click", () => {
+        if (targeting) {
+          deps.toast("Finish marking the target first — click a unit, or press Esc to cancel.");
+          return;
+        }
+        if (picking) {
+          if (mulliganPicks.has(card.id)) mulliganPicks.delete(card.id);
+          else mulliganPicks.add(card.id);
+          render();
+          return;
+        }
         if (cast?.cardId === card.id) {
           cast = null;
           render();
@@ -640,18 +745,28 @@ export function createGameView(deps) {
     box.replaceChildren();
     const phasePill = document.createElement("span");
     phasePill.className = "phase-pill";
-    phasePill.textContent = view.phase === "main" ? "main step" : "weave step";
+    phasePill.textContent = view.phase === "mulligan" ? "opening hand — mulligan" : view.phase === "main" ? "main step" : "weave step";
     box.appendChild(phasePill);
 
     const round = document.createElement("span");
     round.className = "turn-note";
-    round.textContent = view.winnerPlayerId ? "match finished" : myTurn() ? "your round — act in any order" : `${view.players[view.turnPlayerId]?.name}'s round…`;
+    if (view.winnerPlayerId) {
+      round.textContent = "match finished";
+    } else if (view.phase === "mulligan") {
+      const enemyId = enemyIdOf(view);
+      round.textContent = mulliganActive()
+        ? "select cards in your hand to shuffle back — you'll draw that many"
+        : `waiting for ${view.players[enemyId]?.name}'s mulligan…`;
+    } else {
+      round.textContent = myTurn() ? "your round — act in any order" : `${view.players[view.turnPlayerId]?.name}'s round…`;
+    }
     box.appendChild(round);
 
     const hint = document.createElement("span");
     hint.className = "turn-note";
-    hint.textContent = "right-click cards, threads & piles for manual actions";
-    hint.title = "Manual actions are unrestricted: either weaver, any time.";
+    hint.textContent = "right-click cards, threads & piles for manual actions · press T over a card in play to target";
+    hint.title =
+      "Manual actions are unrestricted: either weaver, any time. Targeting: hover a unit or a spell on the stack, press T (or click its 🎯 badge), then click a unit — a visual arrow shows both weavers what it targets. Right-click a stack spell to resolve it.";
     box.appendChild(hint);
 
     // Off-turn with a payable Reaction in hand: an open reaction window.
@@ -663,7 +778,7 @@ export function createGameView(deps) {
       box.appendChild(pill);
     }
 
-    if (myTurn()) {
+    if (myTurn() && view.phase !== "mulligan") {
       if (view.phase === "main") {
         const weaveBtn = document.createElement("button");
         weaveBtn.textContent = "Weave Step →";
@@ -683,6 +798,49 @@ export function createGameView(deps) {
     bar.replaceChildren();
 
     const card = castingCard();
+
+    // Opening-hand mulligan: pick cards by clicking them, then confirm — or keep.
+    if (view.phase === "mulligan" && !over()) {
+      bar.classList.add("visible");
+      if (mulliganActive()) {
+        const n = mulliganPicks.size;
+        const info = document.createElement("span");
+        info.innerHTML = `<b>Mulligan</b> — click cards in your hand to shuffle them back into your deck; you'll draw that many. <b>${n}</b> picked.`;
+        bar.appendChild(info);
+        const shuffleBtn = document.createElement("button");
+        shuffleBtn.className = "primary";
+        shuffleBtn.textContent = n > 0 ? `🔀 Shuffle back ${n} & redraw` : "🔀 Shuffle back & redraw";
+        shuffleBtn.disabled = n === 0;
+        shuffleBtn.title = "The picked cards shuffle into your deck and you draw that many fresh ones";
+        shuffleBtn.addEventListener("click", () => void submit({ type: "mulligan", cardIds: [...mulliganPicks] }));
+        bar.appendChild(shuffleBtn);
+        const keepBtn = document.createElement("button");
+        keepBtn.textContent = "Keep hand";
+        keepBtn.title = "Skip the mulligan and keep your opening hand as dealt";
+        keepBtn.addEventListener("click", () => void submit({ type: "mulligan", cardIds: [] }));
+        bar.appendChild(keepBtn);
+      } else {
+        const info = document.createElement("span");
+        info.innerHTML = `<b>Mulligan taken</b> — waiting for ${view.players[enemyIdOf(view)]?.name ?? "the other weaver"} to decide…`;
+        bar.appendChild(info);
+      }
+      return;
+    }
+
+    // Marking a target: a purely visual arrow from a card in play to a unit.
+    if (targeting && !cast) {
+      bar.classList.add("visible");
+      const info = document.createElement("span");
+      info.innerHTML = `<b>🎯 ${targeting.sourceName}</b> is marking a target — click a unit to draw the arrow (click the same unit again to unmark). Visual only; both weavers see it.`;
+      info.title = "Targeting arrows carry no game effect — they just tell both weavers what a spell or unit is aiming at.";
+      bar.appendChild(info);
+      const cancel = document.createElement("button");
+      cancel.textContent = "Cancel";
+      cancel.title = "Stop marking a target (Esc works too)";
+      cancel.addEventListener("click", cancelTargeting);
+      bar.appendChild(cancel);
+      return;
+    }
 
     if (weavePending && !card) {
       const t = (view.looms[view.you] ?? []).find((x) => x.id === weavePending.threadId);
@@ -838,12 +996,74 @@ export function createGameView(deps) {
     }
   }
 
+  // -------------------------------------------------------- targeting arrows
+
+  /** Centre of a card in play (battlefield unit or stack spell), viewport px. */
+  function cardCentre(cardId) {
+    const el = document.querySelector(
+      `#battlefield .card[data-card-id="${CSS.escape(cardId)}"], #spell-stack .card[data-card-id="${CSS.escape(cardId)}"]`,
+    );
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  /** A gently bowed quadratic curve — keeps crossing arrows readable. */
+  function arrowPathData(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(60, len * 0.18);
+    const cx = (from.x + to.x) / 2 + (-dy / len) * bow;
+    const cy = (from.y + to.y) / 2 + (dx / len) * bow;
+    return `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`;
+  }
+
+  /** Repaints every committed arrow (public — both weavers see the same set). */
+  function renderTargetArrows() {
+    const svg = $("target-arrows");
+    if (!svg || !view) return;
+    svg.setAttribute("width", String(window.innerWidth));
+    svg.setAttribute("height", String(window.innerHeight));
+    svg.setAttribute("viewBox", `0 0 ${window.innerWidth} ${window.innerHeight}`);
+    const g = svg.querySelector("#target-arrows-g");
+    g.replaceChildren();
+    for (const arrow of view.targetArrows ?? []) {
+      const from = cardCentre(arrow.sourceCardId);
+      const to = cardCentre(arrow.targetCardId);
+      if (!from || !to) continue;
+      const d = arrowPathData(from, to);
+      const casing = document.createElementNS(SVG_NS, "path");
+      casing.setAttribute("d", d);
+      casing.setAttribute("class", "target-arrow-casing");
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("class", "target-arrow");
+      path.setAttribute("marker-end", "url(#target-arrowhead)");
+      g.append(casing, path);
+    }
+    updateTargetPreview();
+  }
+
+  /** Live rubber-band from the marking card to the cursor while targeting. */
+  function updateTargetPreview() {
+    const preview = $("target-arrows")?.querySelector("#target-preview");
+    if (!preview) return;
+    const from = targeting ? cardCentre(targeting.sourceCardId) : null;
+    if (!from) {
+      preview.setAttribute("d", "");
+      return;
+    }
+    preview.setAttribute("d", arrowPathData(from, pointer));
+  }
+
   // ------------------------------------------------------------ lifecycle
 
   function render() {
     if (!view) return;
     $("header-round").textContent = `round ${view.roundNumber} · turn ${view.turnNumber}`;
     $("header-turn").textContent = view.turnPlayerId === view.you ? "your turn" : "opponent's turn";
+    document.body.classList.toggle("targeting-mode", !!targeting);
     renderBars();
     renderLooms();
     renderBattlefield();
@@ -855,15 +1075,49 @@ export function createGameView(deps) {
     renderLog();
     renderWinner();
     renderZoneViewer();
+    renderTargetArrows();
   }
 
   function resetSelections() {
     cast = null;
     weavePending = null;
+    targeting = null;
+    mulliganPicks.clear();
   }
 
   // Right-panel "Add token" button (static HTML; the menu is built per click).
   $("add-token-btn")?.addEventListener("click", (e) => openTokenMenu(e.currentTarget));
+
+  // Targeting mode: T over a card in play starts (or cancels) the marking; the
+  // cursor position also drives the live preview arrow.
+  document.addEventListener("mousemove", (e) => {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    if (targeting) updateTargetPreview();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key !== "t" && e.key !== "T") return;
+    const t = e.target;
+    if (t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+    if (!view || over()) return;
+    if (targeting) {
+      cancelTargeting();
+      return;
+    }
+    if (cast) {
+      deps.toast("Finish or cancel the cast first — target a spell once it waits on the stack.");
+      return;
+    }
+    const hit = cardInPlayAt(pointer.x, pointer.y);
+    if (!hit) {
+      deps.toast("Hover a card in play — a unit or a spell on the stack — and press T to mark its target.");
+      return;
+    }
+    startTargeting(hit.id, hit.name);
+  });
+  window.addEventListener("resize", renderTargetArrows);
+  window.addEventListener("scroll", renderTargetArrows, true);
 
   return {
     render(nextView) {

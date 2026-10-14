@@ -45,8 +45,16 @@ const deckB = expandTemplate(DEMO_DECKS[1]!);
 const loomA = [...DEMO_DECKS[0]!.loom];
 const loomB = [...DEMO_DECKS[1]!.loom];
 
-function newGame(): import("../domain/game/GameState.js").GameState {
+/** Raw start: opening hands dealt, the game waiting in the mulligan phase. */
+function rawGame(): import("../domain/game/GameState.js").GameState {
   return engine.createNewGame("test-game", { p1: deckA, p2: deckB }, { p1: "Alice", p2: "Bob" }, { p1: loomA, p2: loomB });
+}
+
+/** Play-started game: both weavers kept their opening hands, round 1 underway. */
+function newGame(): import("../domain/game/GameState.js").GameState {
+  let state = rawGame();
+  state = engine.submitAction(state, { type: "mulligan", gameId: state.gameId, playerId: "p1", cardIds: [] });
+  return engine.submitAction(state, { type: "mulligan", gameId: state.gameId, playerId: "p2", cardIds: [] });
 }
 
 const meta = (c: import("../domain/card/Card.js").Card) => c.metadata as Record<string, unknown>;
@@ -60,6 +68,54 @@ console.log("\n— setup —");
   check("20 life each", state.players.p1!.life === 20 && state.players.p2!.life === 20);
   check("4 threads each, all up & ready", Object.values(state.metadata.looms as Record<string, { orientation: number; exhausted: boolean }[]>).every((loom) => loom.length === 4 && loom.every((t) => t.orientation === 0 && !t.exhausted)));
   check("phase main, p1 first", state.phase === "main" && state.turnPlayerId === "p1");
+}
+
+console.log("\n— opening mulligan —");
+{
+  // Raw start: the game opens in the mulligan phase with both weavers undecided.
+  const state = rawGame();
+  check("game opens in the mulligan phase", state.phase === "mulligan");
+  check("opening hands dealt (4 each, no round-start draw yet)", state.players.p1!.hand.length === 4 && state.players.p2!.hand.length === 4);
+  const legal = ruleSet.listLegalActions(state, "p1");
+  const mulligans = legal.filter((a): a is import("../domain/actions/GameAction.js").MulliganAction => a.type === "mulligan");
+  check("every hand subset is offered (2^4, empty = keep)", mulligans.length === 16 && mulligans.some((a) => a.cardIds.length === 0));
+  check("the non-starting weaver is offered their mulligan too", ruleSet.listLegalActions(state, "p2").filter((a) => a.type === "mulligan").length === 16);
+  check("only concede & mulligan offered during the opening", legal.every((a) => a.type === "mulligan" || a.type === "concede"));
+
+  // p2 (NOT the turn player) reshuffles 2 cards back and redraws that many.
+  const pick = state.players.p2!.hand.slice(0, 2).map((c) => c.id);
+  const deckBefore = state.players.p2!.deck.length;
+  const s1 = engine.submitAction(state, { type: "mulligan", gameId: state.gameId, playerId: "p2", cardIds: pick });
+  check("non-active player may mulligan", (s1.metadata.mulliganed as Record<string, boolean>).p2 === true);
+  check("hand keeps its size (shuffle N back, draw N)", s1.players.p2!.hand.length === 4);
+  check("deck size preserved", s1.players.p2!.deck.length === deckBefore);
+  const p2ids = [...s1.players.p2!.hand, ...s1.players.p2!.deck].map((c) => c.id);
+  check("the picked cards stay in the game (hand or deck)", pick.every((id) => p2ids.includes(id)));
+  check("still the mulligan phase while p1 decides", s1.phase === "mulligan");
+  // After a weaver has decided, no mulligan is offered anymore — the engine's
+  // offered-action guard rejects any further attempt (as does the ruleset).
+  expectThrow("a weaver cannot mulligan twice", () =>
+    engine.submitAction(s1, { type: "mulligan", gameId: s1.gameId, playerId: "p2", cardIds: [] }));
+  expectThrow("cards not in the hand rejected", () =>
+    engine.submitAction(s1, { type: "mulligan", gameId: s1.gameId, playerId: "p1", cardIds: ["nope"] }));
+  const dupId = s1.players.p1!.hand[0]!.id;
+  expectThrow("duplicate picks rejected", () =>
+    engine.submitAction(s1, { type: "mulligan", gameId: s1.gameId, playerId: "p1", cardIds: [dupId, dupId] }));
+
+  // p1 keeps — round 1 begins, with the first player's normal start-of-round draw.
+  const s2 = engine.submitAction(s1, { type: "mulligan", gameId: s1.gameId, playerId: "p1", cardIds: [] });
+  check("both decided: round 1 begins", s2.phase === "main" && s2.turnPlayerId === "p1" && s2.turnNumber === 1);
+  check("p1 drew on round start (5 in hand), p2 still holds 4", s2.players.p1!.hand.length === 5 && s2.players.p2!.hand.length === 4);
+  expectThrow("mulligan after the game started rejected", () =>
+    engine.submitAction(s2, { type: "mulligan", gameId: s2.gameId, playerId: "p1", cardIds: [] }));
+
+  // The sanitized view ships the public mulligan flags and mirrors the offers.
+  const view = sanitizeStateForPlayer(state, "p1", ruleSet);
+  check("mulligan flags ship to the client view", (view.mulliganed.p1 ?? false) === false && (view.mulliganed.p2 ?? false) === false);
+  check("mulligan actions offered in the view's legalActions", view.legalActions.some((a) => a.type === "mulligan"));
+  check("opponent hand stays hidden during the mulligan", view.players.p2!.hand.length === 0 && view.players.p2!.handCount === 4);
+  const viewAfter = sanitizeStateForPlayer(s1, "p2", ruleSet);
+  check("a decided weaver gets no more mulligan offers", !viewAfter.legalActions.some((a) => a.type === "mulligan") && viewAfter.mulliganed.p2 === true);
 }
 
 console.log("\n— deck validation —");
@@ -583,6 +639,73 @@ console.log("\n— sacrificing Threadlings in the loom —");
   const s4 = engine.submitAction(s3, { type: "manual_action", gameId: s3.gameId, playerId: "p1", effect: { kind: "excite_thread" }, targetThreadId: tl2.id });
   const s5 = engine.submitAction(s4, { type: "manual_action", gameId: s4.gameId, playerId: "p1", effect: { kind: "sacrifice_threadling" }, targetThreadId: tl2.id });
   check("sacrificing an excited Threadling removes it (tokens go with it)", loomsOf(s5).p1!.length === 4 && !loomsOf(s5).p1!.some((t) => t.id === tl2.id));
+}
+
+console.log("\n— targeting arrows: visual marks, public, pruned on leave —");
+{
+  type Arrow = { sourceCardId: string; targetCardId: string };
+  const arrowsOf = (s: ReturnType<typeof newGame>) => s.metadata.targetArrows as Arrow[];
+
+  // A cast spell may mark a unit; the arrow ships publicly to both weavers.
+  const state = newGame(); // p1's turn
+  const sacrificeSpell = createCardFromDefinition("sacrifice", "p1-tgt");
+  (state.metadata.looms as Record<string, { orientation: number }[]>).p1![0]!.orientation = 3; // verdant thread left
+  state.players.p1!.hand = [sacrificeSpell];
+  const victim = createCardFromDefinition("riff_shrieker", "p2-v"); // 2/2
+  victim.metadata.lane = 0;
+  victim.metadata.row = "front";
+  victim.metadata.owner = "p2";
+  victim.metadata.healthRemaining = 2;
+  const ally = createCardFromDefinition("sporic_sapling", "p1-ally");
+  ally.metadata.lane = 1;
+  ally.metadata.row = "front";
+  ally.metadata.owner = "p1";
+  ally.metadata.healthRemaining = 1;
+  state.players.p2!.battlefield = [victim];
+  state.players.p1!.battlefield = [ally];
+  const cast = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sacrificeSpell.id, threadIds: ["p1-thread-1", "p1-thread-2"], laneIndex: null, row: null });
+
+  const t1 = engine.submitAction(cast, { type: "manual_action", gameId: cast.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: sacrificeSpell.id, targetCardId: victim.id });
+  check("set_target draws an arrow from a stack spell to a unit", arrowsOf(t1).length === 1 && arrowsOf(t1)[0]!.sourceCardId === sacrificeSpell.id && arrowsOf(t1)[0]!.targetCardId === victim.id);
+  const mine = sanitizeStateForPlayer(t1, "p1", ruleSet);
+  const theirs = sanitizeStateForPlayer(t1, "p2", ruleSet);
+  check("arrows ship publicly to BOTH weavers' views", mine.targetArrows.length === 1 && theirs.targetArrows.length === 1 && theirs.targetArrows[0]!.targetCardId === victim.id);
+
+  // One arrow per source: a different unit re-points it, the same unit clears it.
+  const t2 = engine.submitAction(t1, { type: "manual_action", gameId: t1.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: sacrificeSpell.id, targetCardId: ally.id });
+  check("retargeting re-points the single arrow", arrowsOf(t2).length === 1 && arrowsOf(t2)[0]!.targetCardId === ally.id);
+  const t3 = engine.submitAction(t2, { type: "manual_action", gameId: t2.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: sacrificeSpell.id, targetCardId: ally.id });
+  check("marking the same unit again toggles the arrow off", arrowsOf(t3).length === 0);
+
+  // Units can mark targets too — and the NON-active weaver may fire it (unrestricted).
+  const t4 = engine.submitAction(t3, { type: "manual_action", gameId: t3.gameId, playerId: "p2", effect: { kind: "set_target" }, sourceCardId: victim.id, targetCardId: ally.id });
+  check("a unit can target, fired by the non-active weaver", arrowsOf(t4).length === 1 && arrowsOf(t4)[0]!.sourceCardId === victim.id);
+
+  // Guards: sources must be cards in play, targets battlefield units, never self.
+  expectThrow("a hand card cannot be a targeting source", () =>
+    engine.submitAction(t4, { type: "manual_action", gameId: t4.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: t4.players.p2!.hand[0]!.id, targetCardId: victim.id }));
+  expectThrow("a stack spell cannot BE a target (units only)", () =>
+    engine.submitAction(t4, { type: "manual_action", gameId: t4.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: victim.id, targetCardId: sacrificeSpell.id }));
+  expectThrow("a card cannot target itself", () =>
+    engine.submitAction(t4, { type: "manual_action", gameId: t4.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: victim.id, targetCardId: victim.id }));
+
+  // clear_target wipes a source's arrow by hand.
+  const t5 = engine.submitAction(t4, { type: "manual_action", gameId: t4.gameId, playerId: "p1", effect: { kind: "clear_target" }, sourceCardId: victim.id });
+  check("clear_target removes the source's arrow", arrowsOf(t5).length === 0);
+
+  // Arrows are purely visual: they never touch life, stats or zones.
+  check("targeting changes nothing else", t5.players.p1!.life === 20 && t5.players.p2!.life === 20 && t5.players.p2!.battlefield[0]!.metadata.healthRemaining === 2);
+
+  // Pruning: resolving the spell removes its arrow; the target dying removes arrows into it.
+  const t6 = engine.submitAction(t5, { type: "manual_action", gameId: t5.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: sacrificeSpell.id, targetCardId: victim.id });
+  const t7 = engine.submitAction(t6, { type: "manual_action", gameId: t6.gameId, playerId: "p1", effect: { kind: "set_target" }, sourceCardId: ally.id, targetCardId: victim.id });
+  check("two arrows coexist (one per source)", arrowsOf(t7).length === 2);
+  const t8 = engine.submitAction(t7, { type: "manual_action", gameId: t7.gameId, playerId: "p1", effect: { kind: "resolve_spell" }, targetCardId: sacrificeSpell.id });
+  check("resolving the spell prunes its arrow", !arrowsOf(t8).some((a) => a.sourceCardId === sacrificeSpell.id) && arrowsOf(t8).length === 1);
+  const t9 = engine.submitAction(t8, { type: "manual_action", gameId: t8.gameId, playerId: "p1", effect: { kind: "damage_unit", amount: 2 }, targetCardId: victim.id });
+  check("the target dying prunes arrows into it (battlefield swept)", arrowsOf(t9).length === 0);
+  const t10 = engine.submitAction(t7, { type: "manual_action", gameId: t7.gameId, playerId: "p2", effect: { kind: "return_to_hand" }, targetCardId: ally.id });
+  check("moving a card off the battlefield prunes its arrows", arrowsOf(t10).length === 1 && arrowsOf(t10)[0]!.sourceCardId === sacrificeSpell.id);
 }
 
 console.log("\n— csv catalog mapping —");

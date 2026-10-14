@@ -15,9 +15,10 @@ const UNENUMERATED_TYPES = ["manual_action"];
 /**
  * Types NOT restricted to the turn player — the ruleset's listLegalActions
  * still gates them field-for-field. play_card is here so a ruleset can offer
- * off-turn casts (ManaWeave: Reaction spells join the shared spell stack).
+ * off-turn casts (ManaWeave: Reaction spells join the shared spell stack);
+ * mulligan is here because both weavers decide their opening hand at once.
  */
-const TURN_UNGATED_TYPES = ["concede", "manual_action", "play_card"];
+const TURN_UNGATED_TYPES = ["concede", "manual_action", "play_card", "mulligan"];
 
 function normalizeThreads(ids: readonly string[] | undefined): string {
   return [...(ids ?? [])].sort().join(",");
@@ -46,6 +47,10 @@ export function isSameActionSignature(a: GameAction, b: GameAction): boolean {
     case "weave_thread": {
       const other = b as typeof a;
       return a.threadId === other.threadId && a.direction === other.direction;
+    }
+    case "mulligan": {
+      const other = b as typeof a;
+      return [...a.cardIds].sort().join(",") === [...other.cardIds].sort().join(",");
     }
     case "advance_phase":
     case "end_turn":

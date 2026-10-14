@@ -75,7 +75,8 @@ export function parseLooms(value: unknown): LoomsMetadata | null {
   return out;
 }
 
-function parseFlags(value: unknown): FlagsMetadata {
+/** Boolean per-player flags (weaved, mulliganed) rehydrated from metadata. */
+export function parseFlags(value: unknown): FlagsMetadata {
   if (!value || typeof value !== "object") return {};
   const out: FlagsMetadata = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = v === true;
@@ -165,6 +166,38 @@ export function parseSpellStack(value: unknown): SpellStackEntry[] {
     });
   }
   return out;
+}
+
+/**
+ * Visual targeting arrows — purely informational, no rules effect. One arrow
+ * per source card ({ sourceCardId, targetCardId }); sources are cards in play
+ * (battlefield units and spells waiting on the shared stack), targets are
+ * battlefield units. Both weavers see every arrow (they ship publicly in the
+ * sanitized view), and an arrow vanishes the moment either end leaves play.
+ */
+export interface TargetArrow {
+  sourceCardId: string;
+  targetCardId: string;
+}
+
+export function parseTargetArrows(value: unknown): TargetArrow[] {
+  if (!Array.isArray(value)) return [];
+  const out: TargetArrow[] = [];
+  for (const e of value) {
+    if (!e || typeof e !== "object") continue;
+    const a = e as { sourceCardId?: unknown; targetCardId?: unknown };
+    if (typeof a.sourceCardId !== "string" || typeof a.targetCardId !== "string") continue;
+    if (a.sourceCardId === a.targetCardId) continue;
+    out.push({ sourceCardId: a.sourceCardId, targetCardId: a.targetCardId });
+  }
+  return out;
+}
+
+/** Same contract as mutableSpellStack, for the visual targeting arrows. */
+function mutableTargetArrows(meta: Record<string, unknown>): TargetArrow[] {
+  const arrows = parseTargetArrows(meta.targetArrows);
+  meta.targetArrows = arrows;
+  return arrows;
 }
 
 /** Deterministic RNG (mulberry32) with state persisted in metadata. */
@@ -283,6 +316,8 @@ const PLAYER_TARGET_KINDS = new Set(["damage_face", "heal_face", "draw", "purge_
 const ANY_CARD_TARGET_KINDS = new Set(["move_card"]);
 /** Targets a spell waiting on the shared stack (resolve / counter). */
 const STACK_TARGET_KINDS = new Set(["resolve_spell"]);
+/** Visual-only targeting arrows: the source is a card in play, the target a battlefield unit. */
+const ARROW_TARGET_KINDS = new Set(["set_target", "clear_target"]);
 const ALL_EFFECT_KINDS = new Set([
   "damage_unit",
   "damage_face",
@@ -304,6 +339,8 @@ const ALL_EFFECT_KINDS = new Set([
   "unleash_thread",
   "sacrifice_threadling",
   "resolve_spell",
+  "set_target",
+  "clear_target",
 ]);
 
 const ZONE_KEYS = ["hand", "deck", "graveyard", "exile"] as const;
@@ -327,7 +364,7 @@ function nextSuffix(ids: readonly string[], prefix: string): number {
 
 export class LoomRuleSet implements RuleSet {
   readonly id = "manaweave";
-  readonly version = "3.2.0";
+  readonly version = "3.4.0";
 
   // ------------------------------------------------------------- validation
 
@@ -446,10 +483,10 @@ export class LoomRuleSet implements RuleSet {
       players,
       turnPlayerId: first,
       turnNumber: 1,
-      phase: "main",
-      metadata: { ...metadata, looms, weaved: {}, log },
+      phase: "mulligan",
+      metadata: { ...metadata, looms, weaved: {}, mulliganed: {}, log },
     };
-    this.beginRound(state, first);
+    this.log(state, "Opening hands dealt — each weaver may shuffle any of their cards back into their deck and draw that many.");
     return state;
   }
 
@@ -463,6 +500,18 @@ export class LoomRuleSet implements RuleSet {
 
     const me = state.players[playerId]!;
     const loom = parseLooms(state.metadata.looms)?.[playerId] ?? [];
+
+    // Opening-hand mulligan: both weavers decide (in any order) before round 1
+    // begins. Every subset of the hand is offered — the empty pick keeps it.
+    if (state.phase === "mulligan") {
+      const mulliganed = parseFlags(state.metadata.mulliganed);
+      if (!mulliganed[playerId]) {
+        const subsets: string[][] = [[]];
+        for (const card of me.hand) for (let i = subsets.length - 1; i >= 0; i--) subsets.push([...subsets[i]!, card.id]);
+        for (const cardIds of subsets) actions.push({ ...base, type: "mulligan", cardIds });
+      }
+      return actions;
+    }
 
     if (playerId !== state.turnPlayerId) {
       // Reaction: the spell may be played outside your own round — it pays
@@ -562,6 +611,9 @@ export class LoomRuleSet implements RuleSet {
         next.phase = "weave";
         this.log(next, `${this.nameOf(next, action.playerId)} pauses at the weave step.`);
         break;
+      case "mulligan":
+        this.applyMulligan(next, action);
+        break;
       case "end_turn": {
         const nextPlayer = opponentOf(next, action.playerId);
         next.turnPlayerId = nextPlayer;
@@ -584,6 +636,7 @@ export class LoomRuleSet implements RuleSet {
     }
     this.refreshDeckPeeks(next);
     this.sweepDeaths(next);
+    this.pruneTargetArrows(next);
     return next;
   }
 
@@ -698,6 +751,52 @@ export class LoomRuleSet implements RuleSet {
     thread.orientation = (thread.orientation + (action.direction === "cw" ? 1 : 3)) % 4;
     state.metadata.weaved = { ...weaved, [action.playerId]: true };
     this.log(state, `${this.nameOf(state, action.playerId)} weaves a ${thread.colour} thread to point ${ORIENTATION_NAMES[thread.orientation]}.`);
+  }
+
+  /**
+   * Opening-hand mulligan: the picked cards leave the hand, shuffle into the
+   * deck, and the weaver draws that many fresh ones (an empty pick keeps the
+   * hand). Once per weaver; when both have decided, round 1 begins — including
+   * the first player's normal round-start draw.
+   */
+  private applyMulligan(state: GameState, action: { playerId: string; cardIds: readonly string[] }): void {
+    if (state.phase !== "mulligan") throw new GameRuleViolationError("The mulligan happens only at the start of the game.");
+    const flags = parseFlags(state.metadata.mulliganed);
+    if (flags[action.playerId]) throw new GameRuleViolationError("You have already taken your mulligan.");
+    const me = state.players[action.playerId]!;
+    const ids = [...new Set(action.cardIds ?? [])];
+    const picked = ids.map((id) => {
+      const card = me.hand.find((c) => c.id === id);
+      if (!card) throw new GameRuleViolationError("Those cards are not in your hand.");
+      return card;
+    });
+
+    flags[action.playerId] = true;
+    state.metadata.mulliganed = flags;
+
+    if (picked.length === 0) {
+      this.log(state, `${me.name} keeps their opening hand.`);
+    } else {
+      const pickedIds = new Set(ids);
+      me.hand = me.hand.filter((c) => !pickedIds.has(c.id));
+      for (const card of picked) {
+        card.metadata.zone = "deck";
+        me.deck.push(card);
+      }
+      for (let i = me.deck.length - 1; i > 0; i--) {
+        const j = Math.floor(nextRandom(state.metadata) * (i + 1));
+        [me.deck[i], me.deck[j]] = [me.deck[j]!, me.deck[i]!];
+      }
+      for (let i = 0; i < picked.length; i++) this.drawCard(state, action.playerId);
+      const n = picked.length;
+      this.log(state, `${me.name} shuffles ${n} card${n === 1 ? "" : "s"} back into the deck and draws ${n}.`);
+    }
+
+    // Both weavers decided — the first round begins.
+    if (Object.keys(state.players).every((pid) => flags[pid])) {
+      state.phase = "main";
+      this.beginRound(state, state.turnPlayerId);
+    }
   }
 
   // ------------------------------------------------------------- effects
@@ -910,6 +1009,28 @@ export class LoomRuleSet implements RuleSet {
       this.log(state, `⟡ ${actor} moves ${cardName} from ${sourceZone} to ${destZone}.`);
       return;
     }
+    if (ARROW_TARGET_KINDS.has(effect.kind)) {
+      // set_target / clear_target: visual arrows marking what a card in play
+      // is aiming at. Deliberately unlogged — the arrows themselves are the
+      // announcement, and the chronicle stays about game events.
+      const arrows = mutableTargetArrows(state.metadata);
+      const source = this.findCardAnywhere(state, action.sourceCardId);
+      if (!source || (source.zone !== "battlefield" && source.zone !== "stack")) {
+        throw new GameRuleViolationError("Targeting starts from a unit on the battlefield or a spell on the stack.");
+      }
+      // One arrow per source: marking the same unit again clears it, a
+      // different unit re-points the arrow.
+      let existed = false;
+      if (effect.kind === "set_target") {
+        const target = this.findBattlefieldUnit(state, action.targetCardId);
+        if (!target) throw new GameRuleViolationError("Pick a unit on the battlefield to target.");
+        if (target.id === source.card.id) throw new GameRuleViolationError("A card cannot target itself.");
+        existed = arrows.some((a) => a.sourceCardId === source.card.id && a.targetCardId === target.id);
+      }
+      for (let i = arrows.length - 1; i >= 0; i--) if (arrows[i]!.sourceCardId === source.card.id) arrows.splice(i, 1);
+      if (effect.kind === "set_target" && !existed) arrows.push({ sourceCardId: source.card.id, targetCardId: action.targetCardId! });
+      return;
+    }
     throw new GameRuleViolationError("Unknown manual effect kind.");
   }
 
@@ -1041,6 +1162,17 @@ export class LoomRuleSet implements RuleSet {
       }
     }
     return undefined;
+  }
+
+  /** Targeting arrows vanish the moment either end leaves play (battlefield or shared stack). */
+  private pruneTargetArrows(state: GameState): void {
+    const arrows = parseTargetArrows(state.metadata.targetArrows);
+    if (arrows.length === 0) return;
+    const inPlay = new Set<string>();
+    for (const p of Object.values(state.players)) for (const c of p.battlefield) inPlay.add(c.id);
+    for (const entry of parseSpellStack(state.metadata.spellStack)) inPlay.add(entry.card.id);
+    const kept = arrows.filter((a) => inPlay.has(a.sourceCardId) && inPlay.has(a.targetCardId));
+    if (kept.length !== arrows.length) state.metadata.targetArrows = kept;
   }
 
   /** Re-snapshot every open deck peek against the current deck order (ids only; replaced wholesale, never mutated). */
@@ -1180,7 +1312,9 @@ export class LoomRuleSet implements RuleSet {
         ...state.metadata,
         looms: clonedLooms,
         spellStack: clonedStack,
+        targetArrows: parseTargetArrows(state.metadata.targetArrows).map((a) => ({ ...a })),
         weaved: { ...parseFlags(state.metadata.weaved) },
+        mulliganed: { ...parseFlags(state.metadata.mulliganed) },
         log: [...parseLog(state.metadata.log)],
       },
     };

@@ -44,7 +44,9 @@ export type EffectKind =
   | "excite_thread" // put an excite token on a loom thread (Excite)
   | "unleash_thread" // spend an excite token from a loom thread (Unleash)
   | "sacrifice_threadling" // remove a Threadling token thread from its loom outright
-  | "resolve_spell"; // a spell leaves the shared stack for its caster's discard (resolved or countered)
+  | "resolve_spell" // a spell leaves the shared stack for its caster's discard (resolved or countered)
+  | "set_target" // visual only: draw a targeting arrow from the source card to a battlefield unit
+  | "clear_target"; // visual only: remove the source card's targeting arrow
 
 export interface CardEffect {
   readonly kind: EffectKind;

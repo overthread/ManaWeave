@@ -6,7 +6,8 @@
  * are validated only in `applyAction` (targets must exist, amounts must be sane).
  * The manual vocabulary covers the effect list in Card.ts plus playtest verbs:
  * exhaust_thread, peek_deck (own deck only), shuffle_deck and move_card
- * (send a card to hand / deck top / deck bottom / discard / purge).
+ * (send a card to hand / deck top / deck bottom / discard / purge), and the
+ * purely-visual targeting arrows (set_target / clear_target).
  */
 
 import type { CardEffect } from "../card/Card.js";
@@ -51,6 +52,16 @@ export interface AdvancePhaseAction extends BaseGameAction {
   readonly type: "advance_phase";
 }
 
+/**
+ * Opening-hand mulligan (start of the game only): shuffle the picked cards back
+ * into your deck, then draw that many. An empty pick keeps the hand. Offered
+ * once per weaver; the first round begins once both have decided.
+ */
+export interface MulliganAction extends BaseGameAction {
+  readonly type: "mulligan";
+  readonly cardIds: readonly string[]; // cards to shuffle back (empty = keep hand)
+}
+
 export interface EndTurnAction extends BaseGameAction {
   readonly type: "end_turn";
 }
@@ -64,6 +75,7 @@ export interface ManualAction extends BaseGameAction {
   readonly type: "manual_action";
   readonly effect: CardEffect; // kind + amount/atk/hp as applicable
   readonly targetCardId?: string; // unit-targeted kinds
+  readonly sourceCardId?: string; // set_target / clear_target: the card the arrow starts from (unit or stack spell)
   readonly targetPlayerId?: string; // weaver-targeted kinds (damage_face/heal_face/draw/purge_deck_top/add_token)
   readonly targetThreadId?: string; // ready_thread / rotate_thread / animate_thread / excite_thread / unleash_thread / sacrifice_threadling
   readonly targetDirection?: WeaveDirection; // rotate_thread
@@ -77,6 +89,7 @@ export type GameAction =
   | AttackAction
   | WeaveThreadAction
   | AdvancePhaseAction
+  | MulliganAction
   | EndTurnAction
   | ConcedeAction
   | ManualAction;

@@ -7,7 +7,7 @@ import type { GameState } from "./GameState.js";
 import type { GameAction } from "../actions/GameAction.js";
 import type { RuleSet } from "../rules/RuleSet.js";
 import type { Card } from "../card/Card.js";
-import { parseLooms, parseDeckPeeks, parseSpellStack } from "../rules/LoomRuleSet.js";
+import { parseLooms, parseDeckPeeks, parseSpellStack, parseFlags, parseTargetArrows } from "../rules/LoomRuleSet.js";
 
 export interface PublicCardCostEntry {
   colour: string;
@@ -69,6 +69,12 @@ export interface PublicSpellStackEntry {
   casterName: string;
 }
 
+/** A visual targeting arrow between two cards in play — purely informational, public to both weavers. */
+export interface PublicTargetArrow {
+  sourceCardId: string;
+  targetCardId: string;
+}
+
 export interface ClientGameView {
   gameId: string;
   you: string;
@@ -81,6 +87,10 @@ export interface ClientGameView {
   looms: Record<string, PublicThreadView[]>;
   /** The shared spell stack, public to both weavers — newest cast first (resolves first). */
   spellStack: PublicSpellStackEntry[];
+  /** Visual targeting arrows between cards in play — public, purely informational (no game effect). */
+  targetArrows: PublicTargetArrow[];
+  /** Opening-hand decisions: true once a weaver has kept or reshuffled (public — the log counts aloud anyway). */
+  mulliganed: Record<string, boolean>;
   legalActions: readonly GameAction[];
   log: string[];
 }
@@ -163,6 +173,8 @@ export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleS
     players,
     looms,
     spellStack,
+    targetArrows: parseTargetArrows(state.metadata.targetArrows).map((a) => ({ ...a })),
+    mulliganed: parseFlags(state.metadata.mulliganed),
     legalActions: state.winnerPlayerId ? [] : ruleSet.listLegalActions(state, playerId),
     log: log.slice(-60),
   };

@@ -69,9 +69,11 @@
         <p><b>Goal:</b> bring the enemy weaver from 20 life down to 0. You are a weaver — the four threads hanging in your loom are your only resource.</p>
         <p><b>Threads pay for everything.</b> A card's cost is a row of coloured arrows (e.g. 🌋↑ 🌋←). Each arrow is paid by flipping one <i>ready</i> thread that matches <b>both the colour and the direction</b>. All your threads stand back up at the start of your round.</p>
         <p><b>Weaving:</b> threads start pointing <b>up</b>, so costs with sideways arrows (→ ↓ ←) must be prepared ahead — once per round, in the weave step, you may rotate one thread 90°.</p>
+        <p><b>Mulligan:</b> before the first round begins, each weaver looks at their opening hand and may shuffle <b>any of its cards back into their deck</b>, then draws that many fresh ones. Click cards in your hand to pick them, then confirm (or keep the hand as dealt). One mulligan per weaver; the first round starts once both have decided.</p>
         <p><b>Your round:</b> draw a card → <b>main step</b> (play cards, move back-row units forward, attack — in any order) → optional <b>weave step</b> → end round.</p>
         <p><b>Attacking:</b> click the ⚔ badge on a front-row unit. That exhausts the unit and declares the combat — the damage itself is applied by hand (see below). Defender priority: enemy front unit in the lane first, else the back unit, else the enemy weaver.</p>
-        <p><b>The spell stack:</b> cast spells don't discard — they wait on the <b>shared spell stack</b> (the strip under the battlefield). <b>Reaction</b> spells may be cast outside your own round, even during the opponent's turn — they go on top of the same stack. The newest spell (leftmost) <b>resolves first</b>; resolve or counter stack spells by hand, top-down.</p>
+            <p><b>The spell stack:</b> cast spells don't discard — they wait on the <b>shared spell stack</b> (the strip under the battlefield). <b>Reaction</b> spells may be cast outside your own round, even during the opponent's turn — they go on top of the same stack. The newest spell (leftmost) <b>resolves first</b>; resolve or counter stack spells by hand, top-down.</p>
+            <p><b>Targeting arrows</b> (visual only): to show what a spell or unit is aiming at, hover the card and press <b>T</b> — or click the <b>🎯 badge</b> in its top-right corner — then click a unit. An arrow is drawn from the card to its target so <b>both weavers</b> can see it; it has no game effect. Click the same unit again to unmark, or right-click the card → <i>clear targeting</i>. Right-clicking a stack spell resolves or counters it — and arrows vanish as soon as the card leaves play.</p>
         <p><b>By hand:</b> the engine never resolves card effects or combat damage. <b>Right-click any card, thread, deck or pile</b> for a menu — deal damage, adjust stats, rotate/excite threads, draw, discard, move cards between zones. Adjust life with the −/+ buttons on either player bar. Manual actions are free: either weaver, any time.</p>
         <p class="muted">Full rules reference: docs/game-design.md in the repository.</p>
       </div>
@@ -82,6 +84,21 @@
     <div class="big" id="winner-text"></div>
     <a href="/lobby.html"><button class="primary">Back to Lobby</button></a>
   </div>
+
+  <!-- Visual targeting arrows: fixed overlay drawn between cards in play and
+       their marked targets. Purely informational — pointer-transparent. -->
+  <svg id="target-arrows" aria-hidden="true">
+    <defs>
+      <marker id="target-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c5c22" />
+      </marker>
+      <marker id="target-arrowhead-preview" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a1772e" />
+      </marker>
+    </defs>
+    <g id="target-arrows-g"></g>
+    <path id="target-preview" d="" />
+  </svg>
 
   <script type="module" src="/js/app.js"></script>
 </body>

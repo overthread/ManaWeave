@@ -5,11 +5,13 @@ import { createCardEl } from "./card-ui.js";
  * Builds the battlefield element. Pure render: everything dynamic arrives via
  * `deps` (predicates + click handlers supplied by game-view). Attackable units
  * get a ⚔ badge in their top-left corner — attacking starts ONLY from that
- * badge, never from the card body. Right-clicking a unit opens its context
- * menu (manual damage / stat adjustments / send-to-area).
+ * badge, never from the card body. Every unit also gets a 🎯 badge in its
+ * top-right corner (revealed on hover) for marking visual targeting arrows.
+ * Right-clicking a unit opens its context menu (manual damage / stat
+ * adjustments / send-to-area).
  */
 export function buildBattlefield(deps) {
-  const { view, enemyId, myId, isSlotActive, onSlotClick, onUnitClick, onUnitContext, canAttackUnit, onAttackClick } = deps;
+  const { view, enemyId, myId, isSlotActive, onSlotClick, onUnitClick, onUnitContext, canAttackUnit, onAttackClick, canTargetUnit, onTargetClick, isUnitTargetable } = deps;
   const grid = document.createElement("div");
   grid.className = "battlefield";
   grid.id = "battlefield";
@@ -36,7 +38,7 @@ export function buildBattlefield(deps) {
       const unit = (view.players[zone.playerId]?.battlefield ?? []).find((c) => c.lane === lane && c.row === zone.row);
       if (unit) {
         const clickable = deps.isUnitClickable?.(unit) ?? false;
-        const cardEl = createCardEl(unit, { clickable });
+        const cardEl = createCardEl(unit, { clickable, highlightTarget: deps.isUnitTargetable?.(unit) ?? false });
         if (canAttackUnit?.(unit)) {
           const btn = document.createElement("button");
           btn.className = "attack-btn";
@@ -45,6 +47,17 @@ export function buildBattlefield(deps) {
           btn.addEventListener("click", (e) => {
             e.stopPropagation();
             onAttackClick(unit);
+          });
+          cardEl.appendChild(btn);
+        }
+        if (canTargetUnit?.(unit)) {
+          const btn = document.createElement("button");
+          btn.className = "target-btn";
+          btn.textContent = "🎯";
+          btn.title = "mark a target — click, then click a unit (draws a visual arrow; no game effect)";
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            onTargetClick?.(unit);
           });
           cardEl.appendChild(btn);
         }

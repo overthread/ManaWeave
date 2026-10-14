@@ -1,11 +1,12 @@
 /**
- * Core game state. Ruleset-owned extras (looms, log, rng, weave flags) live in
- * `metadata` behind the parse helpers in the ruleset — never read them directly.
+ * Core game state. Ruleset-owned extras (looms, log, rng, weave & mulligan
+ * flags) live in `metadata` behind the parse helpers in the ruleset — never
+ * read them directly.
  */
 
 import { Card } from "../card/Card.js";
 
-export type GamePhase = "main" | "weave";
+export type GamePhase = "mulligan" | "main" | "weave";
 
 export interface PlayerState {
   id: string;
