@@ -8,7 +8,7 @@ This document is the authoritative rules reference for the current ruleset (`man
 
 ## 1. The Loom
 
-Each player has a **Loom of 4 threads**. A thread has:
+Each player has a **Loom of 4 threads** — Sprout effects can grow it past four with Threadling tokens (§6). A thread has:
 
 - a **colour** — Ember 🔥, Tide 🌊, Verdant 🌿, or Umbra 🌙 (never neutral),
 - an **orientation** — one of the four directions it points: **up ↑, right →, down ↓, left ←**,
@@ -53,11 +53,11 @@ Units cannot attack the round they are played unless they have **Quickstride**.
 
 ## 4. The board
 
-3 lanes × 2 rows (front/back) per player = 12 slots on your side. Units enter any free slot; one unit per slot.
+3 lanes × 2 rows (front/back) per player = 6 slots on your side (12 on the board). Units enter any free slot; one unit per slot — the one exception is a **stack**: an effect that explicitly allows it (Animate, §6) may hold several Animated units in a single slot.
 
 **Combat** — only front-row units attack, into their own lane. Clicking the ⚔ badge on an eligible unit **starts the combat: the unit exhausts, and that is everything the engine does.** The damage itself is applied by hand via manual actions (§6.1), following defender priority:
 
-1. Enemy **front** unit in the lane → the two units deal their power to each other simultaneously.
+1. Enemy **front** unit in the lane → the two units deal their power to each other simultaneously. A **stack** attacks with its combined power, and the defender's retaliation is split among the stack's members **as the attacking player chooses** — one retaliation can never kill more than one member of the stack.
 2. Only an enemy **back** unit in the lane → your unit hits it with no retaliation.
 3. Empty lane → your unit hits the enemy weaver directly.
 
@@ -72,7 +72,18 @@ The **discard and purge piles are public** — both weavers see their contents (
 ## 6. Keywords & effects
 
 - **Quickstride** — the unit can attack the round it is woven.
-- Effect vocabulary (spells and "when woven" triggers): damage a unit, damage the enemy weaver, heal your weaver, buff/debuff a unit, draw cards, **ready** an exhausted thread, **rotate** a thread 90° in a chosen direction, return a unit to its owner's hand, destroy a low-power enemy unit, make the enemy purge deck cards.
+- **Excite** — put an excite token on one of your threads; the token sits there until unleashed.
+- **Unleash** — spend excite tokens to pay for an effect: "Unleash LEFT" removes a token from a left-pointing thread, "Unleash UP UP" removes two tokens from up-pointing threads.
+- **Doom** — a deathrattle: the effect triggers when the unit dies.
+- **Kill** — the effect triggers when this unit kills an enemy unit.
+- **Hunt** — when this unit attacks, it may first move into an adjacent lane that holds an enemy front-row unit, attacking into that lane instead.
+- **Reaction** — the spell may be played outside your own round.
+- **Ability** — activated unit text; usable once per round.
+- **Sprout** — create a **Threadling** token in your loom.
+- **Threadling** — a colourless token thread. It points **up** by default and may be rotated during the end step. It is never exhausted to pay: it is **sacrificed** to pay **any one arrow** of a cost, ignoring colour and orientation. The loom has no size cap — Threadlings grow it past four threads.
+- **Animate** — move a thread from your loom to the battlefield, where it becomes a unit: a Threadling becomes a **1/1**, one of your own threads a **2/2**. When an Animated unit dies, its thread returns to your loom. Effects may allow **several Animated units in one slot** — a stack (see §4) that attacks with its combined power.
+- **Cost arrows in text** — `-UP -> ⟨effect⟩` is a payment gate: exhaust a thread pointing that way to get the effect, on top of any other costs stated.
+- Effect vocabulary (spells and "when woven" triggers): damage a unit, damage the enemy weaver, heal your weaver, buff/debuff a unit, draw cards, **ready** an exhausted thread, **rotate** a thread 90° in a chosen direction, **excite** a thread and **unleash** its token, return a unit to its owner's hand, destroy a low-power enemy unit, make the enemy purge deck cards, **sacrifice** a unit, **sprout** a Threadling, **animate** a thread.
 
 ### 6.1 Manual resolution
 
@@ -98,75 +109,98 @@ Every change to life, unit power and unit health is shown as a **floating delta 
 - **Constraint:** for every card in the deck, your loom must hold **at least as many threads of each cost colour as the card's most demanding single cost** — e.g. a deck running Nightprowler (`umbra:up + umbra:up`) needs ≥ 2 umbra threads. `any` arrows demand nothing. Enforced server-side at game creation and client-side in the deck builder.
 - Typical looms are 2+2 (e.g. Ember/Ember/Umbra/Umbra). Mono-colour looms (4× one colour) maximise that colour's heavy cards but lose `any`-arrow flexibility... and every other colour.
 
-## 8. Built-in card catalog (37 cards)
+## 8. Built-in card catalog (43 cards)
 
-Costs below are written as `Colour ↑` arrows; a bare `↑` is an `any` arrow. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and can be replaced from CSV (§9).
+Costs below are written as `Colour ↑` arrows; a bare `↑` is an `any` arrow. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and can be replaced from CSV (§9). Every card is costed against the **amber** economy — see **[docs/amber.md](amber.md)** for the full price list and per-card audit.
+
+### Cost lanes
+
+Each orientation is a lane, not just a number of arrows:
+
+- **↑ Up** — activated abilities and early-game units. Round-1 currency (threads start up). Baseline: **↑ ↑ ↑ = 2/2**.
+- **→ Right** — mid-game units (one weave to unlock). Baseline: **→ ↑ = 3/4**.
+- **← Left** — spells (one weave to unlock). Baseline: **← = cantrip**, **← ← = 4–5 damage**.
+- **↓ Down** — greater unit stats (two weaves to unlock). Baseline: **↓ ↑ = 6/6**. Aside from special ritual occasions (Abyssal Insight's ↓ + ←), spells don't use DOWN — heavy spell effects belong on **← ←**.
+
+You have more ↑s early and more ←/→/↓s late: every weave rotates a thread *away* from up, so cheap up-costs strain as the game drags while rotated threads power the heavy cards. Units never cost ← and spells never cost →; a colour never demands more than two arrows of its own colour, so a 2+2 loom can cast its colours' whole curve.
 
 ### Ember 🔥
 
 | Card | Atk/Hp | Cost | Notes |
 |---|---|---|---|
-| Cinder Whelp | 2/1 | Ember ↑ | Quickstride. |
-| Ember Skirmisher | 3/2 | Ember ↑ + Ember ↑ | |
-| Warpath Howler | 2/2 | Ember ↑ + Ember ↑ | Quickstride. |
-| Ashblade Berserker | 4/3 | Ember ↑ + Ember ↑ + ↑ | |
-| Flamecaller Djinn | 5/3 | Ember ↑ + Ember → + ↑ | Weave an ember thread right to unlock. |
-| Pyre Colossus | 6/6 | Ember ↑ + Ember ↓ + ↑ + ↑ | The whole loom, one ember woven down. |
-| Scorch | spell | Ember ↑ | Deal 2 damage to any unit. |
-| Immolate | spell | Ember ↑ + Ember ↑ | Deal 3 damage to any unit. |
+| Cinder Whelp | 1/1 | Ember ↑ | Quickstride. |
+| Ember Skirmisher | 2/2 | Ember ↑ + Ember ↑ | |
+| Ashblade Berserker | 3/1 | Ember ↑ + Ember ↑ + ↑ | |
+| Warpath Howler | 3/3 | Ember → + Ember ↑ + ↑ | Quickstride. |
+| Flamecaller Djinn | 4/3 | Ember ↑ + Ember → + ↑ | Weave an ember thread right to unlock. |
+| Pyre Colossus | 7/6 | Ember ↑ + Ember ↓ + ↑ + ↑ | The whole loom, one ember woven down. |
+| Scorch | spell | Ember ↑ | Deal 1 damage to any unit. |
 | Blazing Rush | spell | Ember ↑ | A friendly unit gains +2 power. |
-| Ember Volley | spell | Ember ↑ + Ember ↑ + ↑ | Deal 4 damage to the enemy weaver. |
+| Immolate | spell | Ember ← + Ember ← | Deal 4 damage to any unit. |
+| Ember Volley | spell | Ember ← + Ember ← + ↑ | Deal 5 damage to the enemy weaver. |
 
 ### Tide 🌊
 
 | Card | Atk/Hp | Cost | Notes |
 |---|---|---|---|
 | Tidepool Scout | 1/2 | Tide ↑ | |
-| Mistward Sentinel | 2/4 | Tide ↑ + Tide ↑ | |
-| Riptide Adept | 2/2 | Tide ↑ + Tide ↑ | When woven: draw a card. |
-| Deepwater Leviathan | 5/6 | Tide ↑ + Tide ↓ + ↑ + ↑ | The whole loom, one tide woven down. |
-| Undertow | spell | Tide ↑ + Tide ↑ | Return an enemy unit to its owner's hand. |
-| Tidal Insight | spell | Tide ↑ + Tide ↑ | Draw 2 cards. |
+| Reefback Turtle | 1/3 | Tide ↑ + Tide ↑ | |
+| Riptide Adept | 1/1 | Tide → + Tide ↑ | When woven: draw a card. |
+| Mistward Sentinel | 3/4 | Tide → + Tide ↑ | The → ↑ mid-game baseline. |
+| Deepwater Leviathan | 6/6 | Tide ↓ + Tide ↑ | The ↓ ↑ big-unit baseline. |
 | Still Waters | spell | Tide ↑ | Ready (un-exhaust) one of your exhausted threads. |
-| Moonlit Current | spell | Tide ↑ + Tide ← | Rotate one of your threads 90°, then draw a card. |
+| Tidal Insight | spell | Tide ← + Tide ← | Draw 2 cards. |
+| Moonlit Current | spell | Tide ← + Tide ↑ | Rotate one of your threads 90°, then draw a card. |
+| Undertow | spell | Tide ← | Return an enemy unit to its owner's hand. |
+| Abyssal Insight | spell | Tide ↓ + Tide ← | Draw 3 cards. |
 
 ### Verdant 🌿
 
 | Card | Atk/Hp | Cost | Notes |
 |---|---|---|---|
 | Sapling Warden | 1/3 | Verdant ↑ | |
-| Grovekeeper | 2/3 | Verdant ↑ + Verdant ↑ | When woven: gain 3 life. |
-| Thornhide Behemoth | 4/5 | Verdant ↑ + Verdant ↑ + ↑ | |
+| Wildwood Elk | 2/2 | Verdant ↑ + Verdant ↑ + ↑ | The ↑ ↑ ↑ early-unit baseline. |
+| Grovekeeper | 2/3 | Verdant → + Verdant ↑ | When woven: gain 3 life. |
+| Thornhide Behemoth | 3/5 | Verdant → + Verdant ↑ + ↑ | |
 | Ancient Treant | 6/7 | Verdant ↑ + Verdant ↓ + ↑ + ↑ | The whole loom, one verdant woven down. |
 | Wildbloom | spell | Verdant ↑ | Gain 4 life. |
-| Nature's Bounty | spell | Verdant ↑ + Verdant ↑ | Draw a card and gain 2 life. |
-| Deep Roots | spell | Verdant ↑ + Verdant ↓ | A friendly unit gains +2/+2. |
+| Nature's Bounty | spell | Verdant ← + Verdant ↑ | Draw a card and gain 2 life. |
+| Deep Roots | spell | Verdant ← | A friendly unit gains +3/+3. |
+| Titangrowth | spell | Verdant ← + Verdant ← | A friendly unit gains +4/+4 and you gain 4 life. |
 
 ### Umbra 🌙
 
 | Card | Atk/Hp | Cost | Notes |
 |---|---|---|---|
 | Shadewisp | 2/1 | Umbra ↑ | |
-| Nightprowler | 2/2 | Umbra ↑ + Umbra ↑ | Quickstride. |
-| Duskfang Stalker | 4/2 | Umbra ↑ + Umbra ↑ + ↑ | |
-| Voidcaller | 3/4 | Umbra ↑ + Umbra ← + ↑ | Weave an umbra thread left to unlock. |
-| Night Reaper | 5/5 | Umbra ↑ + Umbra ↓ + ↑ + ↑ | The whole loom, one umbra woven down. |
-| Silencer's Blade | spell | Umbra ↑ + Umbra ↑ | Destroy an enemy unit with ≤ 3 power. |
-| Soul Fracture | spell | Umbra ↑ + Umbra ↑ | Enemy purges the top 2 cards of their deck. |
-| Wraith's Grasp | spell | Umbra ↑ | An enemy unit gets −0/−2. |
+| Nightprowler | 3/2 | Umbra → + Umbra ↑ + ↑ | Quickstride. |
+| Duskfang Stalker | 4/2 | Umbra → + Umbra ↑ | |
+| Voidcaller | 3/3 | Umbra → + Umbra ↑ + ↑ | When woven: the enemy purges the top card of their deck. |
+| Night Reaper | 6/6 | Umbra ↓ + Umbra ↑ | |
+| Wraith's Grasp | spell | Umbra ↑ | An enemy unit gets −1/−2. |
+| Silencer's Blade | spell | Umbra ← + Umbra ↑ | Destroy an enemy unit with ≤ 3 power. |
+| Soul Fracture | spell | Umbra ← | Enemy purges the top 4 cards of their deck. |
+| Devouring Dark | spell | Umbra ← + Umbra ← | Destroy an enemy unit. |
 
 ### Neutral ◇
 
 | Card | Atk/Hp | Cost | Notes |
 |---|---|---|---|
 | Wandering Apprentice | 1/1 | ↑ | |
-| Roadwarden | 2/2 | ↑ + ↑ | |
-| Mercenary Captain | 3/3 | ↑ + ↑ + ↑ | |
+| Roadwarden | 2/2 | → + ↑ | Any colour. |
+| Mercenary Captain | 3/3 | → + → + ↑ | Any colour. |
+| Wanderer's Map | spell | ← + ← | Draw a card. Any colour. |
 | Flash of Steel | spell | ↑ | A friendly unit gains +1 power. |
 
 ## 9. CSV catalog format
 
 Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars; `/pubhtml` links are auto-normalized). One sheet per category (units/spells). Header names are normalized (lowercase, spaces/dashes → underscores). Failed sheets fall back to the built-in catalog.
+
+**Published colour sheets** (design-stage lists; effects are prose, resolved by hand per §6.1):
+
+- Crimson — excite/unleash economy: [Crimson sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=0&single=true&output=csv)
+- Verdant — Threadling/animate economy: [Verdant sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=1378402100&single=true&output=csv)
+- Azure — alignment economy: card list, CSV block and audit in [docs/azure.md](azure.md), published [Azure sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=137551134&single=true&output=csv)
 
 | Column | Aliases | Format |
 |---|---|---|

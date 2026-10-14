@@ -141,7 +141,7 @@ console.log("\n— coloured orientation costs —");
 console.log("\n— combat: attack is a declaration (exhaust); damage is manual —");
 {
   const state = newGame();
-  const atk = createCardFromDefinition("ember_skirmisher", "p1-a"); // 3/2
+  const atk = createCardFromDefinition("ember_skirmisher", "p1-a"); // 2/2
   atk.metadata.summonedTurn = 0;
   atk.metadata.lane = 0;
   atk.metadata.row = "front";
@@ -157,7 +157,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
     engine.submitAction(next, { type: "attack", gameId: next.gameId, playerId: "p1", cardId: atk.id }));
 
   // Front clash resolved by hand: defender takes 3, attacker takes retaliation 2 and dies.
-  const defender = createCardFromDefinition("mistward_sentinel", "p2-d"); // 2/4
+  const defender = createCardFromDefinition("mistward_sentinel", "p2-d"); // 3/4
   defender.metadata.lane = 0;
   defender.metadata.row = "front";
   defender.metadata.owner = "p2";
@@ -182,7 +182,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
   check("back-row unit destroyed without retaliation", dmg3.players.p2!.battlefield.length === 0 && dmg3.players.p1!.battlefield.length === 1);
 
   // Quickstride can attack the round it arrives; summoning sickness still blocks.
-  const fresh = createCardFromDefinition("cinder_whelp", "p1-f"); // haste 2/1
+  const fresh = createCardFromDefinition("cinder_whelp", "p1-f"); // Quickstride 1/1
   fresh.metadata.lane = 2;
   fresh.metadata.row = "front";
   fresh.metadata.summonedTurn = state.turnNumber;
@@ -254,7 +254,7 @@ console.log("\n— spells: pay & discard; effects resolved by hand —");
   const n1 = engine.submitAction(next, { type: "manual_action", gameId: next.gameId, playerId: "p1", effect: { kind: "damage_unit", amount: 2 }, targetCardId: target.id });
   check("scorch's 2 damage applied by hand (4->2)", meta(n1.players.p2!.battlefield[0]!).healthRemaining === 2);
 
-  // Wraith's Grasp as a manual debuff: -0/-2 kills a 2-health unit.
+  // A manual debuff: -0/-2 kills a 2-health unit.
   const s2 = newGame();
   const frail = createCardFromDefinition("tidepool_scout", "p2-fr");
   frail.metadata.lane = 1;

@@ -1,7 +1,7 @@
 /**
  * ManaWeave ruleset.
  *
- * Board: 3 lanes x 2 rows (front/back) per player = 12 slots.
+ * Board: 3 lanes x 2 rows (front/back) per player = 6 slots (12 on the board).
  * Loom: 4 threads per player; a card's cost is a list of coloured orientations
  *       (e.g. ember:up + ember:left) and exhausting (flipping) one ready thread
  *       matching each entry's colour and direction pays for it ("any"-colour
