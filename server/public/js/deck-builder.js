@@ -8,6 +8,14 @@ const LOOM_SIZE = 4;
 const THREAD_COLOURS = ["crimson", "azure", "verdant"];
 
 const SAMPLES = {
+  riot: {
+    name: "Riff Riot",
+    loom: ["crimson", "crimson", "crimson", "crimson"],
+    cards: {
+      riff_larva: 2, riff_eater: 2, riff_aggressor: 2, riff_crawler: 2, riff_shrieker: 2, riff_hunter: 2,
+      wyrmbite: 2, hunting_extincts: 2, enrage: 2, encore: 2, riri_riff_star: 2, reil_riff_devourer: 2,
+    },
+  },
   swarm: {
     name: "Sporic Swarm",
     loom: ["verdant", "verdant", "verdant", "azure"],
@@ -16,12 +24,12 @@ const SAMPLES = {
       guards: 2, together_strong: 2, bonds_of_strength: 2, sacrifice: 2, sire_sporic_commander: 2, sivil_spore_mother: 2,
     },
   },
-  riot: {
-    name: "Riff Riot",
-    loom: ["crimson", "crimson", "crimson", "crimson"],
+  astral: {
+    name: "Astral Alignment",
+    loom: ["azure", "azure", "azure", "azure"],
     cards: {
-      riff_larva: 2, riff_eater: 2, riff_aggressor: 2, riff_crawler: 2, riff_shrieker: 2, riff_hunter: 2,
-      wyrmbite: 2, hunting_extincts: 2, enrage: 2, encore: 2, riri_riff_star: 2, reil_riff_devourer: 2,
+      dawn_star: 2, astral_mothling: 2, astral_scribe: 2, astral_ladybug: 2, astral_weaver: 2, astral_serratist: 2,
+      starstruck: 2, starfall: 2, grand_conjuncture: 2, the_stars_align: 2, alia_astral_aligner: 2, arsdeth_deathstar: 2,
     },
   },
 };
@@ -325,8 +333,9 @@ async function init() {
     $("deck-name").value = "";
     renderAll();
   });
-  $("sample-swarm").addEventListener("click", () => loadSample("swarm"));
   $("sample-riot").addEventListener("click", () => loadSample("riot"));
+  $("sample-swarm").addEventListener("click", () => loadSample("swarm"));
+  $("sample-astral").addEventListener("click", () => loadSample("astral"));
 }
 
 init().catch((err) => showError(err.message));

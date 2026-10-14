@@ -54,6 +54,27 @@ export const DEMO_DECKS: readonly DemoDeckTemplate[] = [
       reil_riff_devourer: 2,
     },
   },
+  {
+    // Constellation economy: every Astral card ×2. Mono-azure loom feeds the
+    // 3-azure cost (Astral Scribe) and the doubled left/down costs (The Stars
+    // Align, Arsdeth).
+    name: "Astral Alignment",
+    loom: ["azure", "azure", "azure", "azure"],
+    cards: {
+      dawn_star: 2,
+      astral_mothling: 2,
+      astral_scribe: 2,
+      astral_ladybug: 2,
+      astral_weaver: 2,
+      astral_serratist: 2,
+      starstruck: 2,
+      starfall: 2,
+      grand_conjuncture: 2,
+      the_stars_align: 2,
+      alia_astral_aligner: 2,
+      arsdeth_deathstar: 2,
+    },
+  },
 ];
 
 export function expandTemplate(template: DemoDeckTemplate): Card[] {
