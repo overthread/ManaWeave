@@ -99,14 +99,14 @@ Two corrections from the first pass: **Grand Conjuncture** (modal pricing takes 
 Hot side (retune these):
 
 1. **Sivil runs +5…+6.5 hot as written** — the reveal rider makes Constellation 4 fire ~70%+ of the time (two matching threads + a typical 2-arrow reveal = 4), and 6 damage to a front-row unit kills nearly everything printed. Retune: 4 damage, *and/or* the gate counts only your loom's threads (reveal then just smooths variance).
-2. **Grand Conjuncture runs +1.5…+2 hot** — the draw-2 mode alone is worth 8 on a 5-budget cost (Tidal Insight pays ← ← for the same cards). Cleanest fix: move it to **AZ← AZ←** (8), which is amber's heavy-spell lane anyway.
+2. **Grand Conjuncture runs +1.5…+2 hot** — the draw-2 mode alone is worth 8 on a 5-budget cost (the ← ← heavy-spell tier prices draw 2 at 8 — amber.md §2). Cleanest fix: move it to **AZ← AZ←** (8), which is amber's heavy-spell lane anyway.
 3. **Astral Scribe runs +2 hot** — "whenever you play a unit, Chart 1" compounds with every unit played (§3.1 repeatable-trigger rule; third unit takes it to +3). Either accept it as the set's engine or gate to once per round.
 
 Cold side (buff these):
 
 4. **Alia runs −2.5…−5.5 cold** — her own ↓ ↓ cost splits the loom into 2+2 groups, so her Constellation-scaled Doom lands at 2–3 without Threadling support, and the ritual discount (−0.5) doesn't cover the gap. Also: rarity is `common` where every precedent (Riri, Sivil, this card's profile) says legendary.
 5. **Astral Ladybug runs −1.5 cold** — a conditional 2/3 for a full AZ→ arrow; either make the gate Constellation 2 (dawn-on) or the body 1/3.
-6. **Astral Animater runs −1…−1.5 cold** — the −UP, UP (two-arrow) payment for one 1.5-amber weave inverts Moonlit Current's exchange rate. Single-arrow gate (`−UP →`) fixes it.
+6. **Astral Animater runs −1…−1.5 cold** — the −UP, UP (two-arrow) payment buys one 1.5-amber Weave, an inverted exchange rate (two arrows of payment for one rotation's worth of value). Single-arrow gate (`−UP →`) fixes it.
 
 Cosmetic:
 

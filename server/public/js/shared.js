@@ -114,12 +114,9 @@ export function renderAuthHeader() {
 }
 
 export const COLOURS = {
-  ember: { label: "Ember", hex: "#ad3a28", glyph: "🔥" },
-  tide: { label: "Tide", hex: "#31629e", glyph: "🌊" },
-  verdant: { label: "Verdant", hex: "#47743f", glyph: "🌿" },
-  umbra: { label: "Umbra", hex: "#6d4692", glyph: "🌙" },
   crimson: { label: "Crimson", hex: "#c8234c", glyph: "🌋" },
   azure: { label: "Azure", hex: "#4a90d9", glyph: "☁️" },
+  verdant: { label: "Verdant", hex: "#47743f", glyph: "🌿" },
   neutral: { label: "Neutral", hex: "#857a63", glyph: "◇" },
 };
 
@@ -130,13 +127,13 @@ export const ORIENTATION_INDEX = { up: 0, right: 1, down: 2, left: 3 };
 const entryColour = (e) => COLOURS[e?.colour]?.hex ?? COLOURS.neutral.hex;
 const entryArrow = (e) => ORIENTATION_ARROWS[ORIENTATION_INDEX[e?.orientation] ?? 0] ?? "?";
 
-/** Render a cost ([{colour:"ember",orientation:"up"},...]) as coloured arrow spans (for innerHTML). */
+/** Render a cost ([{colour:"crimson",orientation:"up"},...]) as coloured arrow spans (for innerHTML). */
 export function formatCostHtml(cost) {
   if (!Array.isArray(cost) || cost.length === 0) return "free";
   return cost.map((e) => `<span class="oc" style="color:${entryColour(e)}">${entryArrow(e)}</span>`).join("");
 }
 
-/** Plain-text rendering (for titles/tooltips): "ember↑ ember←". */
+/** Plain-text rendering (for titles/tooltips): "crimson↑ crimson←". */
 export function formatCostText(cost) {
   if (!Array.isArray(cost) || cost.length === 0) return "free";
   return cost.map((e) => `${e.colour ?? "any"}${entryArrow(e)}`).join(" ");

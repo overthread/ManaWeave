@@ -10,7 +10,7 @@ This document is the authoritative rules reference for the current ruleset (`man
 
 Each player has a **Loom of 4 threads** — Sprout effects can grow it past four with Threadling tokens (§6). A thread has:
 
-- a **colour** — Ember 🔥, Tide 🌊, Verdant 🌿, or Umbra 🌙 (never neutral; the draft sheets add Crimson 🌋 and Azure ☁️ as loadable thread colours — §9),
+- a **colour** — Crimson 🌋, Azure ☁️, or Verdant 🌿 (never neutral),
 - an **orientation** — one of the four directions it points: **up ↑, right →, down ↓, left ←**,
 - a **readiness** — ready or **exhausted** (flipped).
 
@@ -20,13 +20,13 @@ All threads start the game pointing **up**. Threads are the game's only resource
 
 A card's cost is a **list of coloured arrows**. Each arrow is paid by exhausting one ready thread that **matches both the arrow's colour and its direction exactly**:
 
-> **Flamecaller Djinn — cost: `ember:up + ember:right + any:up`** (🔥↑ 🔥→ ⬆)
-> Play it by flipping an ember thread pointing up, an ember thread pointing right, and any third thread pointing up.
+> **Astral Strategist — cost: `azure:up + azure:right + any:up`** (☁️↑ ☁️→ ⬆)
+> Play it by flipping an azure thread pointing up, an azure thread pointing right, and any third thread pointing up.
 
 Rules for payment:
 
 - **One thread per arrow.** A cost of N arrows always exhausts exactly N distinct ready threads.
-- **Colour and direction must both match.** A right-pointing Tide thread cannot pay an `ember:right` arrow.
+- **Colour and direction must both match.** A right-pointing Verdant thread cannot pay a `crimson:right` arrow.
 - **Grey `any` arrows** take a thread of *any* colour. They appear on neutral cards and on heavy costs that need extra threads beyond one colour's supply (each loom colour is typically only 2 threads).
 - **The whole cost is an exact match** — you cannot overpay or substitute. If no assignment of your ready threads covers every arrow, the card cannot be cast right now.
 - All your exhausted threads **flip back to ready** at the start of each of your rounds, so you can re-pay every round.
@@ -34,7 +34,7 @@ Rules for payment:
 ### Design intent
 
 - Because threads start **up**, plain up-arrows are "round 1" costs. Arrows pointing right/down/left must be **woven ahead** (see §3) before the card unlocks — rotating a thread is an investment in a future play.
-- Because a colour's arrows demand that colour's threads, **loom composition is a hard deck-building constraint** (see §7): a card with two ember arrows requires a loom holding at least two ember threads, or it can never be cast.
+- Because a colour's arrows demand that colour's threads, **loom composition is a hard deck-building constraint** (see §7): a card with two azure arrows requires a loom holding at least two azure threads, or it can never be cast.
 - Rotating has tension: turning a thread away from up unlocks new costs but can strand cards that still need up-arrows.
 
 ## 3. The round
@@ -87,11 +87,12 @@ The **discard and purge piles are public** — both weavers see their contents (
 
 ### 6.1 Manual resolution
 
-The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it in the discard; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions**, fired from **right-click context menus** on the board (no panel):
+The engine never resolves card effects or combat damage. Playing a spell pays its cost and puts it in the discard; weaving a trigger unit pays its cost and deploys it; attacking exhausts the attacker. The players apply the outcome themselves through **manual actions**, fired from **right-click context menus** on the board (the one panel exception: the **Add token** button in the chronicle panel on the right):
 
 - **Right-click a unit** (either side): deal damage, adjust power / health (steppers, signed), return to owner's hand, destroy, or send it to another area.
 - **Right-click a hand card**: discard it, or send it to the deck (top/bottom) or purge.
-- **Right-click a thread** (either loom): rotate 90° clockwise or counter-clockwise, ready or exhaust it. During your own weave step the legal weave is offered in the same menu.
+- **Right-click a thread** (either loom): rotate 90° clockwise or counter-clockwise, ready or exhaust it — or **Animate** it into a free slot on its owner's side (Threadling → 1/1, one of the weaver's own threads → 2/2; when the Animated unit dies, the thread returns to the loom). During your own weave step the legal weave is offered in the same menu.
+- **Add token button** (right panel): sprouts a token into either weaver's loom — one token exists, the **Threadling**. This is the manual verb behind **Sprout**.
 - **Right-click a deck pile** (either side): draw N, purge top N, shuffle — and for your own deck, *look at top N* (a private peek panel; only you ever see those cards, and it refreshes automatically as the deck changes).
 - **Discard / purge piles**: click to view their cards; right-click a card inside to send it to hand, deck top/bottom, or the other pile.
 - **Weaver life**: each player bar has **− / +** buttons (±1 life per click).
@@ -100,18 +101,18 @@ Every change to life, unit power and unit health is shown as a **floating delta 
 
 - **Unrestricted by design**: either weaver may fire manual actions at any time, even outside their turn — no turn gating, no legality enumeration. Cross-player moves are legal (you may rotate an enemy thread or send an enemy unit to hand); the only hidden-information rule is that `peek_deck` targets your own deck.
 - The server validates that targets exist and amounts are whole numbers (clamped to ±999); every resulting state change (life, unit health, zones, threads, decks) is tracked server-side, and a weaver hitting 0 life still ends the game.
-- The manual verbs cover the full effect vocabulary plus combat damage and playtest tools: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `exhaust_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`, `peek_deck`, `shuffle_deck`, `move_card` (send any card in any zone to hand / deck top / deck bottom / discard / purge).
+- The manual verbs cover the full effect vocabulary plus combat damage and playtest tools: `damage_unit`, `damage_face`, `heal_face`, `buff_unit`, `draw`, `ready_thread`, `exhaust_thread`, `rotate_thread`, `return_to_hand`, `destroy_unit`, `purge_deck_top`, `peek_deck`, `shuffle_deck`, `move_card` (send any card in any zone to hand / deck top / deck bottom / discard / purge), `add_token` (sprout a Threadling into either loom) and `animate_thread` (loom thread → battlefield unit on its owner's side; death returns the thread). Animated threads are real cards — they can be damaged, buffed and sent to other areas like any unit.
 
 ## 7. Deck construction
 
 - **20–30 cards**, max **3 copies** of any one card.
 - You also choose your **loom composition**: exactly 4 thread colours.
-- **Constraint:** for every card in the deck, your loom must hold **at least as many threads of each cost colour as the card's most demanding single cost** — e.g. a deck running Nightprowler (`umbra:up + umbra:up`) needs ≥ 2 umbra threads. `any` arrows demand nothing. Enforced server-side at game creation and client-side in the deck builder.
-- Typical looms are 2+2 (e.g. Ember/Ember/Umbra/Umbra). Mono-colour looms (4× one colour) maximise that colour's heavy cards but lose `any`-arrow flexibility... and every other colour.
+- **Constraint:** for every card in the deck, your loom must hold **at least as many threads of each cost colour as the card's most demanding single cost** — e.g. a deck running Dawn Star (`azure:up + azure:up`) needs ≥ 2 azure threads. `any` arrows demand nothing. Enforced server-side at game creation and client-side in the deck builder.
+- Typical looms are 2+2 (e.g. Crimson/Crimson/Azure/Azure). Mono-colour looms (4× one colour) maximise that colour's heavy cards but lose `any`-arrow flexibility... and every other colour.
 
-## 8. Built-in card catalog (43 cards)
+## 8. Built-in card catalog (14 cards)
 
-Costs below are written as `Colour ↑` arrows; a bare `↑` is an `any` arrow. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and can be replaced from CSV (§9). Every card is costed against the **amber** economy — see **[docs/amber.md](amber.md)** for the full price list and per-card audit.
+Costs below are written as `Colour ↑` arrows; a bare `↑` is an `any` arrow. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and can be replaced from CSV (§9). Every card is costed against the **amber** economy — see **[docs/amber.md](amber.md)** for the full price list and per-card audit. The Crimson and Azure card lists ship as the published CSV sheets (§9); Azure's list, CSV block and audit live in **[docs/azure.md](azure.md)**.
 
 ### Cost lanes
 
@@ -120,39 +121,9 @@ Each orientation is a lane, not just a number of arrows:
 - **↑ Up** — activated abilities and early-game units. Round-1 currency (threads start up). Baseline: **↑ ↑ ↑ = 2/2**.
 - **→ Right** — mid-game units (one weave to unlock). Baseline: **→ ↑ = 3/4**.
 - **← Left** — spells (one weave to unlock). Baseline: **← = cantrip**, **← ← = 4–5 damage**.
-- **↓ Down** — greater unit stats (two weaves to unlock). Baseline: **↓ ↑ = 6/6**. Aside from special ritual occasions (Abyssal Insight's ↓ + ←), spells don't use DOWN — heavy spell effects belong on **← ←**.
+- **↓ Down** — greater unit stats (two weaves to unlock). Baseline: **↓ ↑ = 6/6**. Aside from special ritual occasions, spells don't use DOWN — heavy spell effects belong on **← ←**.
 
 You have more ↑s early and more ←/→/↓s late: every weave rotates a thread *away* from up, so cheap up-costs strain as the game drags while rotated threads power the heavy cards. Units never cost ← and spells never cost →; a colour never demands more than two arrows of its own colour, so a 2+2 loom can cast its colours' whole curve.
-
-### Ember 🔥
-
-| Card | Atk/Hp | Cost | Notes |
-|---|---|---|---|
-| Cinder Whelp | 1/1 | Ember ↑ | Quickstride. |
-| Ember Skirmisher | 2/2 | Ember ↑ + Ember ↑ | |
-| Ashblade Berserker | 3/1 | Ember ↑ + Ember ↑ + ↑ | |
-| Warpath Howler | 3/3 | Ember → + Ember ↑ + ↑ | Quickstride. |
-| Flamecaller Djinn | 4/3 | Ember ↑ + Ember → + ↑ | Weave an ember thread right to unlock. |
-| Pyre Colossus | 7/6 | Ember ↑ + Ember ↓ + ↑ + ↑ | The whole loom, one ember woven down. |
-| Scorch | spell | Ember ↑ | Deal 1 damage to any unit. |
-| Blazing Rush | spell | Ember ↑ | A friendly unit gains +2 power. |
-| Immolate | spell | Ember ← + Ember ← | Deal 4 damage to any unit. |
-| Ember Volley | spell | Ember ← + Ember ← + ↑ | Deal 5 damage to the enemy weaver. |
-
-### Tide 🌊
-
-| Card | Atk/Hp | Cost | Notes |
-|---|---|---|---|
-| Tidepool Scout | 1/2 | Tide ↑ | |
-| Reefback Turtle | 1/3 | Tide ↑ + Tide ↑ | |
-| Riptide Adept | 1/1 | Tide → + Tide ↑ | When woven: draw a card. |
-| Mistward Sentinel | 3/4 | Tide → + Tide ↑ | The → ↑ mid-game baseline. |
-| Deepwater Leviathan | 6/6 | Tide ↓ + Tide ↑ | The ↓ ↑ big-unit baseline. |
-| Still Waters | spell | Tide ↑ | Ready (un-exhaust) one of your exhausted threads. |
-| Tidal Insight | spell | Tide ← + Tide ← | Draw 2 cards. |
-| Moonlit Current | spell | Tide ← + Tide ↑ | Rotate one of your threads 90°, then draw a card. |
-| Undertow | spell | Tide ← | Return an enemy unit to its owner's hand. |
-| Abyssal Insight | spell | Tide ↓ + Tide ← | Draw 3 cards. |
 
 ### Verdant 🌿
 
@@ -168,20 +139,6 @@ You have more ↑s early and more ←/→/↓s late: every weave rotates a threa
 | Deep Roots | spell | Verdant ← | A friendly unit gains +3/+3. |
 | Titangrowth | spell | Verdant ← + Verdant ← | A friendly unit gains +4/+4 and you gain 4 life. |
 
-### Umbra 🌙
-
-| Card | Atk/Hp | Cost | Notes |
-|---|---|---|---|
-| Shadewisp | 2/1 | Umbra ↑ | |
-| Nightprowler | 3/2 | Umbra → + Umbra ↑ + ↑ | Quickstride. |
-| Duskfang Stalker | 4/2 | Umbra → + Umbra ↑ | |
-| Voidcaller | 3/3 | Umbra → + Umbra ↑ + ↑ | When woven: the enemy purges the top card of their deck. |
-| Night Reaper | 6/6 | Umbra ↓ + Umbra ↑ | |
-| Wraith's Grasp | spell | Umbra ↑ | An enemy unit gets −1/−2. |
-| Silencer's Blade | spell | Umbra ← + Umbra ↑ | Destroy an enemy unit with ≤ 3 power. |
-| Soul Fracture | spell | Umbra ← | Enemy purges the top 4 cards of their deck. |
-| Devouring Dark | spell | Umbra ← + Umbra ← | Destroy an enemy unit. |
-
 ### Neutral ◇
 
 | Card | Atk/Hp | Cost | Notes |
@@ -196,7 +153,7 @@ You have more ↑s early and more ←/→/↓s late: every weave rotates a threa
 
 Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars; `/pubhtml` links are auto-normalized). Each var accepts **multiple URLs separated by commas or whitespace** — point one var at all your published colour tabs; each row's `type` column decides unit vs spell, duplicate card ids are skipped. Header names are normalized (lowercase, spaces/dashes → underscores). Failed sheets fall back to the built-in catalog.
 
-**Published colour sheets** (design-stage lists; the `effect` column is prose shown as card text and resolved by hand per §6.1; Crimson and Azure load as loom-pickable thread colours alongside the launch four):
+**Published colour sheets** (design-stage lists; the `effect` column is prose shown as card text and resolved by hand per §6.1; each sheet's colour is a loom-pickable thread colour):
 
 - Crimson — excite/unleash economy: [Crimson sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=0&single=true&output=csv)
 - Verdant — Threadling/animate economy: [Verdant sheet](https://docs.google.com/spreadsheets/d/e/2PACX-1vTAW7tvQ4UIPnMCK_AlgF2fXzE3H9lIDrcJSOT9cROaCxlEbV8wBFIaGcwL_8JnNPU2rKib7geOd9oZ/pub?gid=1378402100&single=true&output=csv)
@@ -207,8 +164,8 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 | `title` | `name` | required — row skipped without it |
 | `card_id` | `id` | optional, defaults to slugified title |
 | `type` | | `unit` or `spell` (anything but "spell" = unit) |
-| `colour` | `color` | `ember` / `tide` / `verdant` / `umbra` / `crimson` / `azure` / `neutral` (case-insensitive; the draft sheets write `CRIMSON` / `VERDANT` / `AZURE`) |
-| `cost` | | `colour:orientation` entries separated by `+`, `,` or spaces — e.g. `ember:up + ember:left`, shorthand `e:u e:l`, wildcard `any:down` |
+| `colour` | `color` | `crimson` / `azure` / `verdant` / `neutral` (case-insensitive; the draft sheets write `CRIMSON` / `AZURE` / `VERDANT`) |
+| `cost` | | `colour:orientation` entries separated by `+`, `,` or spaces — e.g. `crimson:up + crimson:left`, shorthand `c:u c:l`, wildcard `any:down` |
 | `orientation_req` | `orientation` | legacy column — forces the last entry's orientation |
 | `attack` | `power` | number |
 | `health` | | number |
@@ -224,10 +181,10 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 
 | Written | Meaning |
 |---|---|
-| `ember:up` / `e:u` | one ember thread pointing up |
+| `crimson:up` / `c:u` | one crimson thread pointing up |
 | `any:down` / `down` | one thread of any colour pointing down |
 | `2` | two of the row colour's threads pointing up (legacy) |
-| `ember:up + tide:left` | one ember up **and** one tide left (multi-colour "gold" costs are legal) |
+| `crimson:up + azure:left` | one crimson up **and** one azure left (multi-colour "gold" costs are legal) |
 
 ## 10. Where things live
 
@@ -239,6 +196,6 @@ Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CAR
 - **Accounts & login** — `server/src/infrastructure/persistence/JsonAccountStore.ts` (`DATA_DIR/accounts.json`, unsalted sha256 — playtest-grade, not production auth), `server/src/infrastructure/auth/tokens.ts` (stateless HMAC bearer tokens), routes in `http/routes/authRoutes.ts`; deck CRUD is account-scoped at `/api/decks`, lobby seats bind to accounts in `lobby/LobbyState.ts` (`playerAccounts`)
 - **Client sessions** — `server/public/js/shared.js`: sessions in `sessionStorage` (per browser tab) so one browser can hold both seats for local playtesting; `login.html` + `js/login.js` handle register/login (`?switch=1` forces a fresh login for the second-seat link). The Deck Builder link navigates in the **same tab** — a new tab gets a fresh `sessionStorage` (Firefox/Safari give it nothing, Chrome a frozen copy), which would force a re-login. The current room is remembered twice: per tab in `sessionStorage` (`manaweave.lobby`, written by `enterRoom` — refresh recovery) and per account in `localStorage` (`manaweave.room.<accountId>`) so a fresh tab or a re-login re-enters the room without the code — the server's join endpoint returns the account's existing seat. An explicit `?join=CODE` link outranks the remembered room; only the tab's own room can pre-empt it.
 - **Client views** — `server/src/domain/game/sanitize.ts` (cost pairs as `{colour, orientation}` JSON; discard/purge piles public, deck peeks owner-only)
-- **Context menus** — `server/public/js/context-menu.js` (right-click menus: actions, submenus, −/+ steppers); wired into every card/thread/pile by `game-view.js`, which also renders the zone piles, life −/+ buttons, peek panel, pile viewers and the floating `+N/−N` delta indicators
+- **Context menus** — `server/public/js/context-menu.js` (right-click menus: actions, submenus, −/+ steppers); wired into every card/thread/pile by `game-view.js`, which also renders the zone piles, life −/+ buttons, peek panel, pile viewers, the right-panel **Add token** picker (Threadling → either loom) and the floating `+N/−N` delta indicators
 - **Tests** — `server/src/test/domain-test.ts` (`npm run test:domain`, 91 checks incl. manual actions, zone moves, deck peeks & CSV catalog mapping)
 - **Architecture & running** — see the root `README.md`

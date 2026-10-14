@@ -5,8 +5,8 @@
 
 export type CardType = "unit" | "spell";
 
-/** Launch loom colours + the draft-sheet colours (Crimson, Azure) + neutral. */
-export type ThreadColour = "ember" | "tide" | "verdant" | "umbra" | "crimson" | "azure" | "neutral";
+/** Loom colours (Crimson, Azure, Verdant) + neutral for colourless cards. */
+export type ThreadColour = "crimson" | "azure" | "verdant" | "neutral";
 
 /** The four directions a thread can point; a card's cost is a list of these. */
 export type OrientationName = "up" | "right" | "down" | "left";
@@ -38,7 +38,9 @@ export type EffectKind =
   | "purge_deck_top" // enemy purges {amount} cards from the top of their deck
   | "peek_deck" // privately look at the top {amount} cards of your own deck (0 = dismiss)
   | "shuffle_deck" // shuffle a weaver's deck
-  | "move_card"; // send the targeted card to {zone} (deck uses {position} top/bottom)
+  | "move_card" // send the targeted card to {zone} (deck uses {position} top/bottom)
+  | "add_token" // sprout a token: {token:"threadling"} into the target weaver's loom (Sprout)
+  | "animate_thread"; // move a loom thread to the battlefield as a unit (Animate)
 
 export interface CardEffect {
   readonly kind: EffectKind;
@@ -51,6 +53,8 @@ export interface CardEffect {
   readonly zone?: "hand" | "deck" | "graveyard" | "exile";
   /** move_card deck insertion (default top) */
   readonly position?: "top" | "bottom";
+  /** add_token token type (only "threadling" exists) */
+  readonly token?: "threadling";
 }
 
 export interface CardStats {

@@ -5,24 +5,24 @@ const DECK_MIN = 20;
 const DECK_MAX = 30;
 const MAX_COPIES = 3;
 const LOOM_SIZE = 4;
-const THREAD_COLOURS = ["ember", "tide", "verdant", "umbra", "crimson", "azure"];
+const THREAD_COLOURS = ["crimson", "azure", "verdant"];
 
 const SAMPLES = {
-  ember: {
-    name: "Ember/Umbra Assault",
-    loom: ["ember", "ember", "umbra", "umbra"],
-    cards: { cinder_whelp: 3, warpath_howler: 2, ember_skirmisher: 3, ashblade_berserker: 3, scorch: 3, shadewisp: 3, nightprowler: 2, blazing_rush: 1 },
+  growth: {
+    name: "Verdant Growth",
+    loom: ["verdant", "verdant", "azure", "crimson"],
+    cards: { sapling_warden: 3, wildwood_elk: 3, grovekeeper: 3, thornhide_behemoth: 2, ancient_treant: 2, wildbloom: 3, natures_bounty: 2, deep_roots: 1, wandering_apprentice: 1 },
   },
-  tide: {
-    name: "Tide/Verdant Bulwark",
-    loom: ["tide", "tide", "verdant", "verdant"],
-    cards: { tidepool_scout: 3, mistward_sentinel: 3, riptide_adept: 2, sapling_warden: 3, grovekeeper: 3, thornhide_behemoth: 2, tidal_insight: 2, wildbloom: 2 },
+  bulwark: {
+    name: "Verdant Bulwark",
+    loom: ["verdant", "verdant", "verdant", "verdant"],
+    cards: { sapling_warden: 3, wildwood_elk: 2, grovekeeper: 2, thornhide_behemoth: 3, ancient_treant: 2, wildbloom: 3, titangrowth: 2, roadwarden: 2, wanderers_map: 1 },
   },
 };
 
 const state = {
   catalog: [],
-  loom: ["ember", "ember", "tide", "tide"],
+  loom: ["verdant", "verdant", "azure", "crimson"],
   deck: new Map(), // cardDefId -> quantity
   deckId: null,
   filterColour: "all",
@@ -319,8 +319,8 @@ async function init() {
     $("deck-name").value = "";
     renderAll();
   });
-  $("sample-ember").addEventListener("click", () => loadSample("ember"));
-  $("sample-tide").addEventListener("click", () => loadSample("tide"));
+  $("sample-growth").addEventListener("click", () => loadSample("growth"));
+  $("sample-bulwark").addEventListener("click", () => loadSample("bulwark"));
 }
 
 init().catch((err) => showError(err.message));

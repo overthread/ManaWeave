@@ -6,6 +6,7 @@ export function createThreadEl(thread, opts = {}) {
   el.className = [
     "thread",
     `colour-${thread.colour}`,
+    thread.token ? "token" : "",
     thread.exhausted ? "exhausted" : "",
     opts.clickable ? "clickable" : "",
     opts.paymentSelectable ? "selectable-payment" : "",
@@ -14,10 +15,13 @@ export function createThreadEl(thread, opts = {}) {
   ].join(" ");
   el.dataset.threadId = thread.id;
   el.innerHTML = `
+    ${thread.token ? `<span class="token-tag">token</span>` : ""}
     ${thread.exhausted ? `<span class="flip-tag">flipped</span>` : ""}
     <div class="diamond"></div>
     <div class="arrow">${ORIENTATION_ARROWS[thread.orientation] ?? "↑"}</div>
     <div class="orient-tag">${ORIENTATION_NAMES[thread.orientation] ?? "up"}</div>`;
-  el.title = `${COLOURS[thread.colour]?.label ?? "?"} thread · pointing ${ORIENTATION_NAMES[thread.orientation] ?? "up"}${thread.exhausted ? " · exhausted" : ""}`;
+  el.title = thread.token
+    ? `Threadling · colourless token · pointing ${ORIENTATION_NAMES[thread.orientation] ?? "up"}${thread.exhausted ? " · exhausted" : ""} — sacrificed (not flipped) to pay any one arrow`
+    : `${COLOURS[thread.colour]?.label ?? "?"} thread · pointing ${ORIENTATION_NAMES[thread.orientation] ?? "up"}${thread.exhausted ? " · exhausted" : ""}`;
   return el;
 }

@@ -11,12 +11,12 @@
 import type { CardDefinition } from "../../domain/card/CardDefinitions.js";
 import type { CardEffect, CostColour, CostEntry, OrientationName, ThreadColour } from "../../domain/card/Card.js";
 
-const VALID_COLOURS: readonly ThreadColour[] = ["ember", "tide", "verdant", "umbra", "crimson", "azure", "neutral"];
+const VALID_COLOURS: readonly ThreadColour[] = ["crimson", "azure", "verdant", "neutral"];
 const VALID_ORIENTATIONS: readonly OrientationName[] = ["up", "right", "down", "left"];
 
 /**
  * Parse an orientation cost cell. Entries are separated by "+", "," or
- * whitespace and each is "colour:orientation" ("ember:up", "e:r", "any:down").
+ * whitespace and each is "colour:orientation" ("crimson:up", "c:r", "any:down").
  * A bare orientation token ("up") and a bare number N (legacy sheets) use the
  * card's own colour — or "any" when the card is neutral (N becomes N x up).
  */
@@ -37,7 +37,7 @@ function parseCostCell(raw: string, cardColour: ThreadColour): CostEntry[] {
     if (!orientation) continue;
     const colour = colourRaw === undefined
       ? fallbackColour
-      : ((["any", "neutral", "ember", "tide", "verdant", "umbra", "crimson", "azure"] as const).find((c) => c.startsWith(colourRaw)) ?? fallbackColour);
+      : ((["any", "neutral", "crimson", "azure", "verdant"] as const).find((c) => c.startsWith(colourRaw)) ?? fallbackColour);
     out.push({ colour: colour === "neutral" ? "any" : colour, orientation });
   }
   return out.slice(0, 4);

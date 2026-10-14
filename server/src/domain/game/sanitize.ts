@@ -38,6 +38,8 @@ export interface PublicThreadView {
   colour: string;
   orientation: number;
   exhausted: boolean;
+  /** Threadling token thread (colourless; sacrificed to pay any one arrow). */
+  token?: boolean;
 }
 
 export interface PublicPlayerView {
@@ -125,7 +127,7 @@ export function sanitizeStateForPlayer(state: GameState, playerId: string, ruleS
 
   const looms: Record<string, PublicThreadView[]> = {};
   for (const [pid, threads] of Object.entries(parseLooms(state.metadata.looms) ?? {})) {
-    looms[pid] = threads.map((t) => ({ id: t.id, colour: t.colour, orientation: t.orientation, exhausted: t.exhausted }));
+    looms[pid] = threads.map((t) => ({ id: t.id, colour: t.colour, orientation: t.orientation, exhausted: t.exhausted, token: t.token === true ? true : undefined }));
   }
 
   const log = Array.isArray(state.metadata.log) ? (state.metadata.log as unknown[]).filter((x): x is string => typeof x === "string") : [];

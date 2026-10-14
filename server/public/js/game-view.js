@@ -172,7 +172,7 @@ export function createGameView(deps) {
 
   function threadMenu(t, e) {
     const items = [
-      { header: `${COLOURS[t.colour]?.label ?? "?"} thread — pointing ${ORIENTATION_NAMES[t.orientation] ?? "up"}` },
+      { header: t.token ? "Threadling — colourless token thread" : `${COLOURS[t.colour]?.label ?? "?"} thread — pointing ${ORIENTATION_NAMES[t.orientation] ?? "up"}` },
       { label: "↻ rotate clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "cw" }) },
       { label: "↺ rotate counter-clockwise", onClick: () => void submitManual({ kind: "rotate_thread" }, { targetThreadId: t.id, targetDirection: "ccw" }) },
     ];
@@ -181,6 +181,13 @@ export function createGameView(deps) {
     } else {
       items.push({ label: "▼ exhaust (flip)", onClick: () => void submitManual({ kind: "exhaust_thread" }, { targetThreadId: t.id }) });
     }
+    // Animate: the thread becomes a unit (1/1 token / 2/2 real thread) on its owner's side.
+    const animItems = animateItems(t);
+    items.push(
+      animItems.length > 0
+        ? { label: "⚔ Animate…", hint: `becomes a ${t.token ? "1/1" : "2/2"}`, sub: animItems }
+        : { label: "⚔ Animate…", hint: "no free slots", disabled: true },
+    );
     // The round's real weave, offered alongside when this thread is legally weaveable.
     for (const direction of ["cw", "ccw"]) {
       if (actions("weave_thread").some((a) => a.threadId === t.id && a.direction === direction)) {
@@ -192,6 +199,42 @@ export function createGameView(deps) {
       }
     }
     showContextMenu(e.clientX, e.clientY, items);
+  }
+
+  /** Free slots on the thread owner's side of the board (Animate destinations). */
+  function animateItems(t) {
+    const ownerId = Object.keys(view?.looms ?? {}).find((pid) => (view.looms[pid] ?? []).some((x) => x.id === t.id));
+    if (!ownerId) return [];
+    const units = view.players[ownerId]?.battlefield ?? [];
+    const items = [];
+    for (let lane = 0; lane < 3; lane++) {
+      for (const row of ["front", "back"]) {
+        if (units.some((u) => u.lane === lane && u.row === row)) continue;
+        items.push({
+          label: `lane ${lane + 1} · ${row}`,
+          onClick: () => void submitManual({ kind: "animate_thread" }, { targetThreadId: t.id, targetLane: lane, targetRow: row }),
+        });
+      }
+    }
+    return items;
+  }
+
+  /** Right-panel token picker: sprout a token into either weaver's loom (Sprout). */
+  function openTokenMenu(btn) {
+    if (!view) return;
+    if (over()) {
+      deps.toast("The weave is finished — no more manual actions.");
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const targets = Object.keys(view.players).map((pid) => ({
+      label: pid === view.you ? "→ your loom" : `→ ${view.players[pid]?.name}'s loom`,
+      onClick: () => void submitManual({ kind: "add_token", token: "threadling" }, { targetPlayerId: pid }),
+    }));
+    showContextMenu(rect.left, rect.bottom + 4, [
+      { header: "Add token" },
+      { label: "🧵 Threadling", hint: "colourless token · sacrificed to pay any one arrow", sub: targets },
+    ]);
   }
 
   function deckMenu(playerId, e) {
@@ -551,7 +594,7 @@ export function createGameView(deps) {
     const needsSlot = card.type === "unit";
 
     const need = card.cost?.length ?? 0;
-    let hint = `Exhaust threads matching <b>${formatCostHtml(card.cost)}</b> — one per arrow, right colour and direction. `;
+    let hint = `Exhaust threads matching <b>${formatCostHtml(card.cost)}</b> — one per arrow, right colour and direction (a 🧵 Threadling may be sacrificed for any one arrow). `;
     hint += needsSlot ? "Then click a free slot on your side. " : "Then cast — resolve its effect by hand. ";
 
     const info = document.createElement("span");
@@ -693,6 +736,9 @@ export function createGameView(deps) {
     cast = null;
     weavePending = null;
   }
+
+  // Right-panel "Add token" button (static HTML; the menu is built per click).
+  $("add-token-btn")?.addEventListener("click", (e) => openTokenMenu(e.currentTarget));
 
   return {
     render(nextView) {

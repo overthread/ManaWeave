@@ -124,46 +124,16 @@ The card list, CSV block and per-card audit live in **[docs/azure.md](azure.md)*
 Amber prices purchasing power *at the moment of casting*. It deliberately ignores **when** that moment comes — and ManaWeave has expensive early-game cards and late-game cheap cards, an axis most games can't even express. A 3×↑ card on round 1 commands three quarters of your loom; five rounds later it's spare change if you kept threads up. A ← ← spell is dead weight for two rounds, then steadily becomes trivial. Amber cannot see any of that. Treat it as a floor check, not a verdict:
 
 - **≥ 3 amber budget:** within **±0.5**.
-- **≤ 2.5 amber budget (tempo country):** up to **+1 hot** — cheap plays trade efficiency for board presence. Ember's early curve lives at that cap; other colours stay ≤ +0.5.
+- **≤ 2.5 amber budget (tempo country):** up to **+1 hot** — cheap plays trade efficiency for board presence. Crimson's early curve lives at that cap; other colours stay ≤ +0.5.
 - **Ritual discount:** anything uncastable before round 3 (a ↓ anywhere in the cost, or a whole-loom cost) may run **−0.5 under** — the delay is real payment. Hence the ↓ ↑ giants sit at exact parity while the whole-loom 6/7 runs a touch under.
 - **Face damage** may run **+0.5 beyond normal slack**: reach closes games, and the baselines price it at the top of the ← ← band (5 damage at 8–9 budget). Face damage above 8 needs a ritual-tier cost.
 - After the numbers pass, ask what amber can't: **when does this card actually hit the table, what does the opponent have by then, and does the loom even point that way yet?** A card that only ever comes down late is judged against late-game threats; an always-castable ↑ card is judged against the whole game's tempo.
 
 ---
 
-## 5. Catalog audit — built-in list (43 cards)
+## 5. Catalog audit — built-in list (14 cards)
 
 Budget = arrows + weft bonus (single-↑ costs only); Price = stats + effects. Δ = Price − Budget.
-
-### Ember 🔥 — early aggression, face damage
-
-| Card | Cost | Body/Effect | Budget | Price | Δ |
-|---|---|---|---|---|---|
-| Cinder Whelp | 🔥↑ | 1/1 Quickstride | 2 | 2.5 | +0.5 |
-| Ember Skirmisher | 🔥↑ 🔥↑ | 2/2 | 2 | 3 | +1 |
-| Ashblade Berserker | 🔥↑ 🔥↑ ⬆ | 3/1 | 2.5 | 3.5 | +1 |
-| Warpath Howler | 🔥→ 🔥↑ ⬆ | 3/3 Quickstride | 5.5 | 5.5 | 0 |
-| Flamecaller Djinn | 🔥→ 🔥↑ ⬆ | 4/3 | 5.5 | 5.5 | 0 |
-| Pyre Colossus | 🔥↑ 🔥↓ ⬆ ⬆ | 7/6 | 10 | 10 | 0 |
-| Scorch | 🔥↑ | 1 damage any unit | 2 | 2 | 0 |
-| Blazing Rush | 🔥↑ | +2 power | 2 | 2 | 0 |
-| Immolate | 🔥← 🔥← | 4 damage any unit | 8 | 8 | 0 |
-| Ember Volley | 🔥← 🔥← ⬆ | 5 damage to weaver | 8.5 | 10 | +1.5 (reach) |
-
-### Tide 🌊 — card advantage, thread tricks, walls
-
-| Card | Cost | Body/Effect | Budget | Price | Δ |
-|---|---|---|---|---|---|
-| Tidepool Scout | 🌊↑ | 1/2 | 2 | 2 | 0 |
-| Reefback Turtle | 🌊↑ 🌊↑ | 1/3 | 2 | 2.5 | +0.5 |
-| Riptide Adept | 🌊→ 🌊↑ | 1/1, when woven: draw | 5 | 5.5 | +0.5 |
-| Mistward Sentinel | 🌊→ 🌊↑ | 3/4 | 5 | 5 | 0 |
-| Deepwater Leviathan | 🌊↓ 🌊↑ | 6/6 | 9 | 9 | 0 |
-| Still Waters | 🌊↑ | ready a thread | 2 | 2 | 0 |
-| Tidal Insight | 🌊← 🌊← | draw 2 | 8 | 8 | 0 |
-| Moonlit Current | 🌊← 🌊↑ | rotate a thread, draw 1 | 5 | 5.5 | +0.5 |
-| Undertow | 🌊← | return enemy unit to hand | 4 | 4 | 0 |
-| Abyssal Insight | 🌊↓ 🌊← | draw 3 | 12 | 12 | 0 |
 
 ### Verdant 🌿 — growth, buffs, staying power
 
@@ -178,20 +148,6 @@ Budget = arrows + weft bonus (single-↑ costs only); Price = stats + effects. �
 | Nature's Bounty | 🌿← 🌿↑ | draw 1, gain 2 life | 5 | 5 | 0 |
 | Deep Roots | 🌿← | +3/+3 | 4 | 4.5 | +0.5 |
 | Titangrowth | 🌿← 🌿← | +4/+4, gain 4 life | 8 | 8 | 0 |
-
-### Umbra 🌙 — removal, disruption
-
-| Card | Cost | Body/Effect | Budget | Price | Δ |
-|---|---|---|---|---|---|
-| Shadewisp | 🌙↑ | 2/1 | 2 | 2.5 | +0.5 |
-| Nightprowler | 🌙→ 🌙↑ ⬆ | 3/2 Quickstride | 5.5 | 5 | −0.5 |
-| Duskfang Stalker | 🌙→ 🌙↑ | 4/2 | 5 | 5 | 0 |
-| Voidcaller | 🌙→ 🌙↑ ⬆ | 3/3, when woven: enemy purges 1 | 5.5 | 5.5 | 0 |
-| Night Reaper | 🌙↓ 🌙↑ | 6/6 | 9 | 9 | 0 |
-| Wraith's Grasp | 🌙↑ | enemy unit −1/−2 | 2 | 2 | 0 |
-| Silencer's Blade | 🌙← 🌙↑ | destroy enemy ≤ 3 power | 5 | 5 | 0 |
-| Soul Fracture | 🌙← | enemy purges top 4 | 4 | 4 | 0 |
-| Devouring Dark | 🌙← 🌙← | destroy an enemy unit | 8 | 8 | 0 |
 
 ### Neutral ◇ — colourless tools (any-arrows, half budget)
 

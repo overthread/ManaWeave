@@ -9,8 +9,8 @@ export const DECK_MIN_SIZE = 20;
 export const DECK_MAX_SIZE = 30;
 export const MAX_COPIES_PER_CARD = 3;
 export const LOOM_SIZE = 4;
-/** Loom-pickable thread colours: the four launch colours plus the draft-sheet colours. */
-export const THREAD_COLOURS: readonly ThreadColour[] = ["ember", "tide", "verdant", "umbra", "crimson", "azure"];
+/** Loom-pickable thread colours: Crimson, Azure, Verdant. */
+export const THREAD_COLOURS: readonly ThreadColour[] = ["crimson", "azure", "verdant"];
 export const STARTING_LIFE = 20;
 export const STARTING_HAND_SIZE = 4;
 export const LANES = 3;

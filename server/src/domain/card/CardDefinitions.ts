@@ -3,8 +3,8 @@
  * Definitions can be replaced at startup from CSVs (see infrastructure/cards/csvCatalog.ts);
  * the built-in list below guarantees a playable game with zero configuration.
  *
- * Costs are coloured orientations: a card costing [ember:up, ember:left] is paid by
- * exhausting two ember threads, one pointing up and one pointing left. The colour
+ * Costs are coloured orientations: a card costing [crimson:up, crimson:left] is paid by
+ * exhausting two crimson threads, one pointing up and one pointing left. The colour
  * "any" matches a thread of any colour (used by neutral cards and heavy costs).
  *
  * The list is costed against the amber economy (docs/amber.md): each arrow grants a
@@ -33,8 +33,8 @@ export interface CardDefinition {
 
 /**
  * Parse a compact cost string for the built-in catalog. Entries are separated by
- * whitespace, "+" or ","; each entry is "colour:orientation" ("ember:up",
- * "any:down"), with prefix matching on both sides ("e:u", "t:l"). A bare
+ * whitespace, "+" or ","; each entry is "colour:orientation" ("crimson:up",
+ * "any:down"), with prefix matching on both sides ("c:u", "az:l"). A bare
  * orientation token ("up") means any colour.
  */
 export function parseCost(raw: string): CostEntry[] {
@@ -47,7 +47,7 @@ export function parseCost(raw: string): CostEntry[] {
     if (!orientation) throw new Error(`Unknown orientation in cost entry: "${token}" (in "${raw}")`);
     const colour = colourRaw === undefined
       ? "any"
-      : (["any", "neutral", "ember", "tide", "verdant", "umbra", "crimson", "azure"] as const).find((c) => c.startsWith(colourRaw));
+      : (["any", "neutral", "crimson", "azure", "verdant"] as const).find((c) => c.startsWith(colourRaw));
     if (!colour) throw new Error(`Unknown colour in cost entry: "${token}" (in "${raw}")`);
     out.push({ colour: colour === "neutral" ? "any" : colour, orientation });
   }
@@ -95,33 +95,6 @@ const s = (
 });
 
 export const FALLBACK_CATALOG: readonly CardDefinition[] = [
-  // ---------------------------------------------------------------- Ember
-  u("cinder_whelp", "Cinder Whelp", "ember", "ember:up", 1, 1, { haste: true, text: "Quickstride — can attack the round it is woven.", rarity: "common" }),
-  u("ember_skirmisher", "Ember Skirmisher", "ember", "ember:up ember:up", 2, 2, { rarity: "common" }),
-  u("ashblade_berserker", "Ashblade Berserker", "ember", "ember:up ember:up any:up", 3, 1, { text: "Costs two ember threads woven Up plus any one thread woven Up.", rarity: "common" }),
-  u("warpath_howler", "Warpath Howler", "ember", "ember:right ember:up any:up", 3, 3, { haste: true, text: "Quickstride — can attack the round it is woven. Costs ember threads woven Up and Right, plus any thread woven Up.", rarity: "uncommon" }),
-  u("flamecaller_djinn", "Flamecaller Djinn", "ember", "ember:up ember:right any:up", 4, 3, { text: "Costs ember threads woven Up and Right, plus any thread woven Up — weave ahead to unlock it.", rarity: "rare" }),
-  u("pyre_colossus", "Pyre Colossus", "ember", "ember:up ember:down any:up any:up", 7, 6, { text: "The whole loom, one ember woven down.", rarity: "rare" }),
-  s("scorch", "Scorch", "ember", "ember:up", [{ kind: "damage_unit", amount: 1, scope: "any" }], { text: "Deal 1 damage to any unit.", rarity: "common" }),
-  s("blazing_rush", "Blazing Rush", "ember", "ember:up", [{ kind: "buff_unit", atk: 2, hp: 0, scope: "friendly" }], { text: "A friendly unit gains +2 power.", rarity: "common" }),
-  s("immolate", "Immolate", "ember", "ember:left ember:left", [{ kind: "damage_unit", amount: 4, scope: "any" }], { text: "Deal 4 damage to any unit. Costs two ember threads woven Left.", rarity: "common" }),
-  s("ember_volley", "Ember Volley", "ember", "ember:left ember:left any:up", [{ kind: "damage_face", amount: 5 }], { text: "Deal 5 damage to the enemy weaver. Costs two ember threads woven Left plus any thread woven Up.", rarity: "uncommon" }),
-
-  // ----------------------------------------------------------------- Tide
-  u("tidepool_scout", "Tidepool Scout", "tide", "tide:up", 1, 2, { rarity: "common" }),
-  u("reefback_turtle", "Reefback Turtle", "tide", "tide:up tide:up", 1, 3, { rarity: "common" }),
-  u("riptide_adept", "Riptide Adept", "tide", "tide:right tide:up", 1, 1, { onPlay: [{ kind: "draw", amount: 1 }], text: "When woven: draw a card. Costs tide threads woven Up and Right.", rarity: "uncommon" }),
-  u("mistward_sentinel", "Mistward Sentinel", "tide", "tide:right tide:up", 3, 4, { text: "Costs tide threads woven Up and Right — weave a tide thread right during an early round to unlock it.", rarity: "common" }),
-  u("deepwater_leviathan", "Deepwater Leviathan", "tide", "tide:down tide:up", 6, 6, { text: "Costs tide threads woven Up and Down — weave a tide thread down (two rotations) to unlock it.", rarity: "rare" }),
-  s("still_waters", "Still Waters", "tide", "tide:up", [{ kind: "ready_thread" }], { text: "Ready (un-exhaust) one of your exhausted threads.", rarity: "common" }),
-  s("tidal_insight", "Tidal Insight", "tide", "tide:left tide:left", [{ kind: "draw", amount: 2 }], { text: "Draw 2 cards. Costs two tide threads woven Left.", rarity: "common" }),
-  s("moonlit_current", "Moonlit Current", "tide", "tide:left tide:up", [{ kind: "rotate_thread" }, { kind: "draw", amount: 1 }], {
-    text: "Rotate one of your threads 90° in any direction, then draw a card. Costs tide threads woven Up and Left.",
-    rarity: "uncommon",
-  }),
-  s("undertow", "Undertow", "tide", "tide:left", [{ kind: "return_to_hand", scope: "enemy" }], { text: "Return an enemy unit to its owner's hand. Costs a tide thread woven Left.", rarity: "uncommon" }),
-  s("abyssal_insight", "Abyssal Insight", "tide", "tide:down tide:left", [{ kind: "draw", amount: 3 }], { text: "Draw 3 cards. Costs tide threads woven Down and Left.", rarity: "rare" }),
-
   // -------------------------------------------------------------- Verdant
   u("sapling_warden", "Sapling Warden", "verdant", "verdant:up", 1, 3, { rarity: "common" }),
   u("wildwood_elk", "Wildwood Elk", "verdant", "verdant:up verdant:up any:up", 2, 2, { text: "Costs two verdant threads woven Up plus any one thread woven Up.", rarity: "common" }),
@@ -135,17 +108,6 @@ export const FALLBACK_CATALOG: readonly CardDefinition[] = [
     rarity: "uncommon",
   }),
   s("titangrowth", "Titangrowth", "verdant", "verdant:left verdant:left", [{ kind: "buff_unit", atk: 4, hp: 4, scope: "friendly" }, { kind: "heal_face", amount: 4 }], { text: "A friendly unit gains +4/+4 and you gain 4 life. Costs two verdant threads woven Left.", rarity: "rare" }),
-
-  // ---------------------------------------------------------------- Umbra
-  u("shadewisp", "Shadewisp", "umbra", "umbra:up", 2, 1, { rarity: "common" }),
-  u("nightprowler", "Nightprowler", "umbra", "umbra:right umbra:up any:up", 3, 2, { haste: true, text: "Quickstride — can attack the round it is woven. Costs umbra threads woven Up and Right, plus any thread woven Up.", rarity: "uncommon" }),
-  u("duskfang_stalker", "Duskfang Stalker", "umbra", "umbra:right umbra:up", 4, 2, { text: "Costs umbra threads woven Up and Right — weave ahead to unlock it.", rarity: "common" }),
-  u("voidcaller", "Voidcaller", "umbra", "umbra:right umbra:up any:up", 3, 3, { onPlay: [{ kind: "purge_deck_top", amount: 1 }], text: "When woven: the enemy weaver purges the top card of their deck. Costs umbra threads woven Up and Right, plus any thread woven Up.", rarity: "uncommon" }),
-  u("night_reaper", "Night Reaper", "umbra", "umbra:down umbra:up", 6, 6, { text: "Costs umbra threads woven Up and Down — weave an umbra thread down (two rotations) to unlock it.", rarity: "rare" }),
-  s("wraiths_grasp", "Wraith's Grasp", "umbra", "umbra:up", [{ kind: "buff_unit", atk: -1, hp: -2, scope: "enemy" }], { text: "An enemy unit gets −1/−2. It unravels if its health reaches 0.", rarity: "common" }),
-  s("silencers_blade", "Silencer's Blade", "umbra", "umbra:left umbra:up", [{ kind: "destroy_unit", maxPower: 3, scope: "enemy" }], { text: "Destroy an enemy unit with 3 or less power. Costs umbra threads woven Left and Up.", rarity: "uncommon" }),
-  s("soul_fracture", "Soul Fracture", "umbra", "umbra:left", [{ kind: "purge_deck_top", amount: 4 }], { text: "The enemy weaver purges the top 4 cards of their deck. Costs an umbra thread woven Left.", rarity: "rare" }),
-  s("devouring_dark", "Devouring Dark", "umbra", "umbra:left umbra:left", [{ kind: "destroy_unit", maxPower: 99, scope: "enemy" }], { text: "Destroy an enemy unit. Costs two umbra threads woven Left.", rarity: "rare" }),
 
   // -------------------------------------------------------------- Neutral
   u("wandering_apprentice", "Wandering Apprentice", "neutral", "any:up", 1, 1, { rarity: "common" }),

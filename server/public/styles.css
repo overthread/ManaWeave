@@ -36,15 +36,14 @@
   --danger: #9c3529;
   --ok: #47743f;
 
-  /* heraldic thread colours */
-  --ember: #ad3a28;
-  --tide: #31629e;
+  /* heraldic thread colours (--crimson above is the wax-seal danger ink) */
   --verdant: #47743f;
-  --umbra: #6d4692;
   --neutral: #857a63;
-  /* draft-sheet thread colours (--crimson above is the wax-seal danger ink) */
   --crimson-thread: #c8234c;
   --azure-thread: #4a90d9;
+
+  /* selection highlight accent */
+  --highlight: #31629e;
 
   --font-display: "Cinzel", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-body: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -258,10 +257,7 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
     box-shadow 0.22s var(--ease-out-soft),
     border-color 0.22s ease;
 }
-.card.colour-ember   { --c: var(--ember);   --c-line: rgba(173, 58, 40, 0.55);  --c-soft: rgba(173, 58, 40, 0.09);  --c-glow: rgba(173, 58, 40, 0.28); }
-.card.colour-tide    { --c: var(--tide);    --c-line: rgba(49, 98, 158, 0.55);  --c-soft: rgba(49, 98, 158, 0.09);  --c-glow: rgba(49, 98, 158, 0.28); }
 .card.colour-verdant { --c: var(--verdant); --c-line: rgba(71, 116, 63, 0.55);  --c-soft: rgba(71, 116, 63, 0.09);  --c-glow: rgba(71, 116, 63, 0.28); }
-.card.colour-umbra   { --c: var(--umbra);   --c-line: rgba(109, 70, 146, 0.55); --c-soft: rgba(109, 70, 146, 0.09); --c-glow: rgba(109, 70, 146, 0.28); }
 .card.colour-crimson { --c: var(--crimson-thread); --c-line: rgba(200, 35, 76, 0.55); --c-soft: rgba(200, 35, 76, 0.09); --c-glow: rgba(200, 35, 76, 0.28); }
 .card.colour-azure   { --c: var(--azure-thread);   --c-line: rgba(74, 144, 217, 0.55); --c-soft: rgba(74, 144, 217, 0.09); --c-glow: rgba(74, 144, 217, 0.28); }
 
@@ -362,12 +358,12 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   pointer-events: none;
 }
 .card.highlight-target {
-  border-color: var(--tide);
+  border-color: var(--highlight);
   cursor: pointer;
   box-shadow:
     inset 0 0 0 2px #f7f0dc,
-    inset 0 0 0 3px var(--tide),
-    0 0 0 1px var(--tide);
+    inset 0 0 0 3px var(--highlight),
+    0 0 0 1px var(--highlight);
 }
 .card.exhausted { opacity: 0.55; filter: sepia(0.5); }
 .card.backrow-unit { filter: sepia(0.25); }
@@ -493,10 +489,7 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
   cursor: default;
   flex: none;
 }
-.thread.colour-ember   { --c: var(--ember);   --c-line: rgba(173, 58, 40, 0.8);  --c-soft: rgba(173, 58, 40, 0.16);  --c-glow: rgba(173, 58, 40, 0.35); }
-.thread.colour-tide    { --c: var(--tide);    --c-line: rgba(49, 98, 158, 0.8);  --c-soft: rgba(49, 98, 158, 0.16);  --c-glow: rgba(49, 98, 158, 0.35); }
 .thread.colour-verdant { --c: var(--verdant); --c-line: rgba(71, 116, 63, 0.8);  --c-soft: rgba(71, 116, 63, 0.16);  --c-glow: rgba(71, 116, 63, 0.35); }
-.thread.colour-umbra   { --c: var(--umbra);   --c-line: rgba(109, 70, 146, 0.8); --c-soft: rgba(109, 70, 146, 0.16); --c-glow: rgba(109, 70, 146, 0.35); }
 .thread.colour-crimson { --c: var(--crimson-thread); --c-line: rgba(200, 35, 76, 0.8); --c-soft: rgba(200, 35, 76, 0.16); --c-glow: rgba(200, 35, 76, 0.35); }
 .thread.colour-azure   { --c: var(--azure-thread);   --c-line: rgba(74, 144, 217, 0.8); --c-soft: rgba(74, 144, 217, 0.16); --c-glow: rgba(74, 144, 217, 0.35); }
 
@@ -550,13 +543,26 @@ h3 { font-size: 14px; color: var(--gold-deep); letter-spacing: 0.08em; }
 .thread.selectable-payment { cursor: pointer; }
 .thread.selectable-payment .diamond { box-shadow: inset 0 0 10px var(--c-soft), 0 0 0 2px rgba(161, 119, 46, 0.45), 0 2px 8px rgba(161, 119, 46, 0.25); }
 .thread.paying { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
-.thread.highlight-target { outline: 2px solid var(--tide); outline-offset: 2px; border-radius: 6px; cursor: pointer; }
+.thread.highlight-target { outline: 2px solid var(--highlight); outline-offset: 2px; border-radius: 6px; cursor: pointer; }
 .thread .flip-tag {
   position: absolute;
   top: -6px;
   right: -4px;
   font-size: 9px;
   color: var(--crimson);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.thread.token .diamond {
+  border-style: double;
+  border-width: 3px;
+}
+.thread .token-tag {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  font-size: 9px;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
