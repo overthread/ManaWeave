@@ -1,6 +1,9 @@
 /**
  * Optional CSV catalog ingestion (e.g. published Google Sheets).
  * One env var per category: CARD_CSV_UNITS_URL, CARD_CSV_SPELLS_URL.
+ * Each var accepts multiple URLs separated by commas or whitespace, so a
+ * single var can point at several published tabs (e.g. one per colour);
+ * each row's `type` column decides unit vs spell regardless of category.
  * Sheets /pubhtml URLs are normalized to CSV output. Failures fall back to the
  * built-in catalog with a warning — the game always starts playable.
  */
@@ -151,19 +154,26 @@ async function fetchCsv(url: string): Promise<string> {
 export async function loadCardCatalogFromConfiguredCsvs(): Promise<{ cards: CardDefinition[]; warnings: string[] }> {
   const warnings: string[] = [];
   const cards: CardDefinition[] = [];
+  const seenIds = new Set<string>();
   const categories: Array<[string, string | undefined]> = [
     ["units", process.env.CARD_CSV_UNITS_URL],
     ["spells", process.env.CARD_CSV_SPELLS_URL],
   ];
-  for (const [category, url] of categories) {
-    if (!url) continue;
-    try {
-      const csv = await fetchCsv(url);
-      const defs = csvRowsToDefinitions(category, parseCsv(csv));
-      if (defs.length === 0) throw new Error("no parseable rows");
-      cards.push(...defs);
-    } catch (err) {
-      warnings.push(`CSV category '${category}' failed to load (${err instanceof Error ? err.message : err}); using fallback.`);
+  for (const [category, urlList] of categories) {
+    if (!urlList) continue;
+    for (const url of urlList.split(/[,\s]+/).filter(Boolean)) {
+      try {
+        const csv = await fetchCsv(url);
+        const defs = csvRowsToDefinitions(category, parseCsv(csv));
+        if (defs.length === 0) throw new Error("no parseable rows");
+        for (const def of defs) {
+          if (seenIds.has(def.id)) continue;
+          seenIds.add(def.id);
+          cards.push(def);
+        }
+      } catch (err) {
+        warnings.push(`CSV category '${category}' failed to load ${url} (${err instanceof Error ? err.message : err}); using fallback.`);
+      }
     }
   }
   return { cards, warnings };

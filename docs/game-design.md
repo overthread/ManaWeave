@@ -194,7 +194,7 @@ You have more ↑s early and more ←/→/↓s late: every weave rotates a threa
 
 ## 9. CSV catalog format
 
-Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars; `/pubhtml` links are auto-normalized). One sheet per category (units/spells). Header names are normalized (lowercase, spaces/dashes → underscores). Failed sheets fall back to the built-in catalog.
+Card data can come from published Google Sheets CSVs (`CARD_CSV_UNITS_URL`, `CARD_CSV_SPELLS_URL` env vars; `/pubhtml` links are auto-normalized). Each var accepts **multiple URLs separated by commas or whitespace** — point one var at all your published colour tabs; each row's `type` column decides unit vs spell, duplicate card ids are skipped. Header names are normalized (lowercase, spaces/dashes → underscores). Failed sheets fall back to the built-in catalog.
 
 **Published colour sheets** (design-stage lists; effects are prose, resolved by hand per §6.1):
 
