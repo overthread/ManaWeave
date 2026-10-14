@@ -66,7 +66,7 @@ console.log("\n— deck validation —");
 {
   check("valid demo deck accepted", ruleSet.validateDeck(deckA).ok);
   check("too-small deck rejected", !ruleSet.validateDeck(deckA.slice(0, 10)).ok);
-  const manyCopies = Array.from({ length: 21 }, () => createCardFromDefinition("wildbloom", "x"));
+  const manyCopies = Array.from({ length: 21 }, () => createCardFromDefinition("sporic_sapling", "x"));
   const v = ruleSet.validateDeck(manyCopies);
   check("21-card deck of one card rejected on copies", !v.ok && /copies/i.test(v.reason ?? ""));
   const badLoom = ruleSet.validateLoom(["verdant", "verdant", "verdant"], deckA);
@@ -78,21 +78,21 @@ console.log("\n— deck validation —");
 console.log("\n— playing cards & threads —");
 {
   const state = newGame();
-  // Force a known hand for p1: a 1-cost verdant unit.
-  const warden = createCardFromDefinition("sapling_warden", "p1-999-sapling_warden");
-  state.players.p1!.hand = [warden];
+  // Force a known hand for p1: a two-arrow verdant unit (loom A holds three verdant threads).
+  const sapling = createCardFromDefinition("sporic_sapling", "p1-999-sapling");
+  state.players.p1!.hand = [sapling];
   const legal = ruleSet.listLegalActions(state, "p1");
-  const plays = legal.filter((a): a is PlayCardAction => a.type === "play_card" && a.cardId === warden.id);
+  const plays = legal.filter((a): a is PlayCardAction => a.type === "play_card" && a.cardId === sapling.id);
   check("unit playable into 6 slots x valid thread combos", plays.length > 0);
   check("play actions enumerate slots", new Set(plays.map((a) => `${a.laneIndex}:${a.row}`)).size === 6);
 
   const looms = state.metadata.looms as Record<string, { id: string; colour: string }[]>;
-  const verdantThread = looms.p1!.find((t) => t.colour === "verdant")!;
+  const verdantThreads = looms.p1!.filter((t) => t.colour === "verdant");
   const azureThread = looms.p1!.find((t) => t.colour === "azure")!;
 
-  const next = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: warden.id, threadIds: [verdantThread.id], laneIndex: 1, row: "back" });
+  const next = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sapling.id, threadIds: [verdantThreads[0]!.id, verdantThreads[1]!.id], laneIndex: 1, row: "back" });
   check("unit deployed to lane 2 back", next.players.p1!.battlefield.some((c) => meta(c).lane === 1 && meta(c).row === "back"));
-  check("paying thread exhausted", (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!.find((t) => t.id === verdantThread.id)!.exhausted);
+  check("paying threads exhausted", (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!.find((t) => t.id === verdantThreads[0]!.id)!.exhausted && (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!.find((t) => t.id === verdantThreads[1]!.id)!.exhausted);
   check("summoning sickness stamped", next.players.p1!.battlefield[0]!.metadata.summonedTurn === 1);
 
   // Paying with the wrong colour for a coloured card must not be offered.
@@ -100,51 +100,51 @@ console.log("\n— playing cards & threads —");
   check("wrong-colour-only payment not offered for verdant card", !legalAfter.some((a) => a.type === "play_card" && (a.threadIds ?? []).join() === azureThread.id));
 
   expectThrow("engine rejects non-offered thread combo", () =>
-    engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: warden.id, threadIds: [azureThread.id], laneIndex: 1, row: "back" }));
+    engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sapling.id, threadIds: [azureThread.id], laneIndex: 1, row: "back" }));
   expectThrow("engine rejects occupied slot", () =>
-    engine.submitAction(next, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: warden.id, threadIds: [], laneIndex: 1, row: "back" }));
+    engine.submitAction(next, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sapling.id, threadIds: [], laneIndex: 1, row: "back" }));
 }
 
 console.log("\n— coloured orientation costs —");
 {
   const state = newGame();
-  const behemoth = createCardFromDefinition("thornhide_behemoth", "p1-998-behemoth"); // verdant:up verdant:right any:up
-  state.players.p1!.hand = [behemoth];
+  const animater = createCardFromDefinition("sporic_animater", "p1-998-animater"); // verdant:right verdant:up
+  state.players.p1!.hand = [animater];
   const looms = state.metadata.looms as Record<string, { id: string; colour: string; orientation: number; exhausted: boolean }[]>;
-  check("not castable while all threads up", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === behemoth.id));
+  check("not castable while all threads up", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === animater.id));
 
   looms.p1!.find((t) => t.colour === "azure")!.orientation = 1; // right — wrong colour
-  check("right-pointing wrong-colour thread doesn't pay", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === behemoth.id));
+  check("right-pointing wrong-colour thread doesn't pay", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === animater.id));
 
   const verdantThread = looms.p1!.find((t) => t.colour === "verdant")!;
   verdantThread.orientation = 1; // right
   const legalNow = ruleSet.listLegalActions(state, "p1");
-  check("castable once a verdant thread points right", legalNow.some((a) => a.type === "play_card" && a.cardId === behemoth.id && (a.threadIds ?? []).includes(verdantThread.id)));
+  check("castable once a verdant thread points right", legalNow.some((a) => a.type === "play_card" && a.cardId === animater.id && (a.threadIds ?? []).includes(verdantThread.id)));
 
-  looms.p1!.find((t) => t.id !== verdantThread.id && t.colour === "verdant")!.orientation = 1; // no verdant:up left
-  check("no verdant-up left blocks the verdant:up entry", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === behemoth.id));
+  for (const t of looms.p1!) if (t.id !== verdantThread.id && t.colour === "verdant") t.orientation = 1; // no verdant:up left
+  check("no verdant-up left blocks the verdant:up entry", !ruleSet.listLegalActions(state, "p1").some((a) => a.type === "play_card" && a.cardId === animater.id));
 
-  // Whole-loom cost: verdant:up verdant:down any:up any:up over loom [verdant, verdant, azure, crimson].
+  // Down-heavy cost: verdant:down verdant:up over loom [verdant, verdant, verdant, azure].
   const state2 = newGame();
-  const treant = createCardFromDefinition("ancient_treant", "p1-997-treant");
-  state2.players.p1!.hand = [treant];
+  const sire = createCardFromDefinition("sire_sporic_commander", "p1-997-sire");
+  state2.players.p1!.hand = [sire];
   const looms2 = state2.metadata.looms as Record<string, { colour: string; orientation: number }[]>;
   const setOrient = (colour: string, orientation: number) => {
     for (const t of looms2.p1!) t.orientation = 0;
     looms2.p1!.find((t) => t.colour === colour)!.orientation = orientation;
   };
   setOrient("azure", 2); // an azure thread down — wrong colour for the verdant:down entry
-  check("down-pointing wrong colour doesn't pay", !ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === treant.id));
-  setOrient("verdant", 2); // a verdant thread down, three threads up
-  check("payable with verdant-up, verdant-down and two any-up", ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === treant.id));
-  looms2.p1!.find((t) => t.colour === "verdant" && t.orientation !== 2)!.orientation = 2; // second verdant down
-  check("no verdant-up left blocks the whole-loom cost", !ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === treant.id));
+  check("down-pointing wrong colour doesn't pay", !ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === sire.id));
+  setOrient("verdant", 2); // a verdant thread down, the rest up
+  check("payable with verdant-down and verdant-up", ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === sire.id));
+  for (const t of looms2.p1!) if (t.colour === "verdant") t.orientation = 2; // every verdant down
+  check("no verdant-up left blocks the down-heavy cost", !ruleSet.listLegalActions(state2, "p1").some((a) => a.type === "play_card" && a.cardId === sire.id));
 }
 
 console.log("\n— combat: attack is a declaration (exhaust); damage is manual —");
 {
   const state = newGame();
-  const atk = createCardFromDefinition("wildwood_elk", "p1-a"); // 2/2
+  const atk = createCardFromDefinition("sporic_trader", "p1-a"); // 2/2
   atk.metadata.summonedTurn = 0;
   atk.metadata.lane = 0;
   atk.metadata.row = "front";
@@ -160,7 +160,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
     engine.submitAction(next, { type: "attack", gameId: next.gameId, playerId: "p1", cardId: atk.id }));
 
   // Front clash resolved by hand: defender takes 3, attacker takes retaliation 2 and dies.
-  const defender = createCardFromDefinition("thornhide_behemoth", "p2-d"); // 3/5
+  const defender = createCardFromDefinition("reil_riff_devourer", "p2-d"); // 5/4
   defender.metadata.lane = 0;
   defender.metadata.row = "front";
   defender.metadata.owner = "p2";
@@ -174,7 +174,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
   check("manual retaliation kills the attacker, defender survives", dmg2.players.p1!.battlefield.length === 0 && dmg2.players.p2!.battlefield.length === 1);
 
   // Back-row strike: one-way damage applied by hand.
-  const backUnit = createCardFromDefinition("wandering_apprentice", "p2-b"); // 1/1
+  const backUnit = createCardFromDefinition("sporic_sapling", "p2-b"); // 1/1
   backUnit.metadata.lane = 0;
   backUnit.metadata.row = "back";
   backUnit.metadata.owner = "p2";
@@ -185,7 +185,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
   check("back-row unit destroyed without retaliation", dmg3.players.p2!.battlefield.length === 0 && dmg3.players.p1!.battlefield.length === 1);
 
   // Quickstride can attack the round it arrives; summoning sickness still blocks.
-  const fresh = createCardFromDefinition("wandering_apprentice", "p1-f"); // 1/1, Quickstride stamped by hand
+  const fresh = createCardFromDefinition("sporic_agent", "p1-f"); // 1/1, Quickstride stamped by hand
   fresh.metadata.haste = true;
   fresh.metadata.lane = 2;
   fresh.metadata.row = "front";
@@ -195,7 +195,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
   next = engine.submitAction(state, { type: "attack", gameId: state.gameId, playerId: "p1", cardId: fresh.id });
   check("haste unit attacks immediately (exhausts, still no auto damage)", meta(next.players.p1!.battlefield[0]!).attackedThisTurn === true && next.players.p2!.life === 20);
 
-  const sick = createCardFromDefinition("wildwood_elk", "p1-s");
+  const sick = createCardFromDefinition("sporic_sapling", "p1-s");
   sick.metadata.lane = 1;
   sick.metadata.row = "front";
   sick.metadata.summonedTurn = state.turnNumber;
@@ -207,7 +207,7 @@ console.log("\n— combat: attack is a declaration (exhaust); damage is manual �
 console.log("\n— moving, weaving, turn cycle —");
 {
   const state = newGame();
-  const unit = createCardFromDefinition("sapling_warden", "p1-m");
+  const unit = createCardFromDefinition("sporic_sapling", "p1-m");
   unit.metadata.lane = 2;
   unit.metadata.row = "back";
   unit.metadata.owner = "p1";
@@ -243,24 +243,26 @@ console.log("\n— moving, weaving, turn cycle —");
 console.log("\n— spells: pay & discard; effects resolved by hand —");
 {
   const state = newGame();
-  const wildbloom = createCardFromDefinition("wildbloom", "p1-spell");
-  state.players.p1!.hand = [wildbloom];
-  const target = createCardFromDefinition("thornhide_behemoth", "p2-t");
+  const sacrificeSpell = createCardFromDefinition("sacrifice", "p1-spell"); // verdant:left verdant:up
+  (state.metadata.looms as Record<string, { orientation: number }[]>).p1![0]!.orientation = 3; // weave thread 1 left by hand
+  state.players.p1!.hand = [sacrificeSpell];
+  const target = createCardFromDefinition("reil_riff_devourer", "p2-t");
   target.metadata.lane = 0;
   target.metadata.row = "front";
   target.metadata.owner = "p2";
   target.metadata.healthRemaining = 4;
   state.players.p2!.battlefield = [target];
-  const next = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: wildbloom.id, threadIds: ["p1-thread-1"], laneIndex: null, row: null });
+  const next = engine.submitAction(state, { type: "play_card", gameId: state.gameId, playerId: "p1", cardId: sacrificeSpell.id, threadIds: ["p1-thread-1", "p1-thread-2"], laneIndex: null, row: null });
   check("casting no longer auto-damages", meta(next.players.p2!.battlefield[0]!).healthRemaining === 4);
-  check("spell went to discard", next.players.p1!.graveyard.some((c) => c.id === wildbloom.id));
-  check("casting exhausted its thread", (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!.find((t) => t.id === "p1-thread-1")!.exhausted);
+  check("spell went to discard", next.players.p1!.graveyard.some((c) => c.id === sacrificeSpell.id));
+  const loomsAfterCast = (next.metadata.looms as Record<string, { id: string; exhausted: boolean }[]>).p1!;
+  check("casting exhausted its threads", loomsAfterCast.find((t) => t.id === "p1-thread-1")!.exhausted && loomsAfterCast.find((t) => t.id === "p1-thread-2")!.exhausted);
   const n1 = engine.submitAction(next, { type: "manual_action", gameId: next.gameId, playerId: "p1", effect: { kind: "damage_unit", amount: 2 }, targetCardId: target.id });
   check("manual 2 damage applied by hand (4->2)", meta(n1.players.p2!.battlefield[0]!).healthRemaining === 2);
 
   // A manual debuff: -0/-2 kills a 2-health unit.
   const s2 = newGame();
-  const frail = createCardFromDefinition("roadwarden", "p2-fr");
+  const frail = createCardFromDefinition("riff_shrieker", "p2-fr");
   frail.metadata.lane = 1;
   frail.metadata.row = "back";
   frail.metadata.owner = "p2";
@@ -290,7 +292,7 @@ console.log("\n— manual actions: either weaver, any time, no restrictions —"
   const deckBefore = n4.players.p1!.deck.length;
   const n5 = engine.submitAction(n4, { type: "manual_action", gameId: n4.gameId, playerId: "p2", effect: { kind: "purge_deck_top", amount: 2 }, targetPlayerId: "p1" });
   check("manual purge exiles 2 deck cards", n5.players.p1!.deck.length === deckBefore - 2 && n5.players.p1!.exile.length === 2);
-  const unit = createCardFromDefinition("sapling_warden", "p2-r");
+  const unit = createCardFromDefinition("sporic_sapling", "p2-r");
   unit.metadata.lane = 2;
   unit.metadata.row = "front";
   unit.metadata.owner = "p2";
@@ -326,7 +328,7 @@ console.log("\n— manual zone moves, deck peek & shuffle —");
   check("move_card recycles discard to deck bottom", n2.players.p1!.graveyard.length === 0 && n2.players.p1!.deck.length === deckLen + 1 && n2.players.p1!.deck[n2.players.p1!.deck.length - 1]!.id === handCard.id);
 
   // move_card: battlefield -> purge, fired by the non-active weaver
-  const unit = createCardFromDefinition("sapling_warden", "p1-mv");
+  const unit = createCardFromDefinition("sporic_sapling", "p1-mv");
   unit.metadata.lane = 0;
   unit.metadata.row = "front";
   unit.metadata.owner = "p1";
@@ -370,7 +372,7 @@ console.log("\n— win conditions & sanitize —");
 {
   const state = newGame();
   state.players.p2!.life = 2;
-  const striker = createCardFromDefinition("wandering_apprentice", "p1-w");
+  const striker = createCardFromDefinition("sporic_agent", "p1-w");
   striker.metadata.lane = 0;
   striker.metadata.row = "front";
   striker.metadata.summonedTurn = 0;
@@ -424,22 +426,20 @@ console.log("\n— Threadlings: sprout, sacrifice payment, animate —");
   check("threadling token flag ships to the client view", (tokenView.looms.p1 ?? []).some((t) => t.token === true));
 
   // Sacrifice payment: a Threadling covers any one arrow and is REMOVED, not flipped.
-  const pay = newGame(); // p1 loom: verdant, verdant, azure, crimson — all up
-  const behemoth = createCardFromDefinition("thornhide_behemoth", "p1-996-behemoth"); // verdant:up verdant:right any:up
-  pay.players.p1!.hand = [behemoth];
+  const pay = newGame(); // p1 loom: verdant ×3 + azure — all up
+  const arouser = createCardFromDefinition("sporic_arouser", "p1-996-arouser"); // verdant:up verdant:up verdant:up
+  pay.players.p1!.hand = [arouser];
   const looms = loomsOf(pay);
-  looms.p1!.find((t) => t.colour === "azure")!.orientation = 2; // azure down…
-  looms.p1!.find((t) => t.colour === "crimson")!.orientation = 2; // …crimson down — no up thread for the any arrow
-  check("unpayable without a third up-facing thread", !ruleSet.listLegalActions(pay, "p1").some((a) => a.type === "play_card" && a.cardId === behemoth.id));
   const verdants = looms.p1!.filter((t) => t.colour === "verdant")!;
-  verdants[0]!.orientation = 1; // one verdant woven right
+  verdants[0]!.orientation = 1; // one verdant woven right — only two verdant:up threads remain
+  check("unpayable with only two verdant threads up", !ruleSet.listLegalActions(pay, "p1").some((a) => a.type === "play_card" && a.cardId === arouser.id));
   const withTl = engine.submitAction(pay, { type: "manual_action", gameId: pay.gameId, playerId: "p1", effect: { kind: "add_token", token: "threadling" }, targetPlayerId: "p1" });
   const tlId = loomsOf(withTl).p1!.find((t) => t.token)!.id;
-  check("threadling unlocks the cost (pays any one arrow)", ruleSet.listLegalActions(withTl, "p1").some((a) => a.type === "play_card" && a.cardId === behemoth.id && (a.threadIds ?? []).includes(tlId)));
-  const played = engine.submitAction(withTl, { type: "play_card", gameId: withTl.gameId, playerId: "p1", cardId: behemoth.id, threadIds: [verdants[0]!.id, verdants[1]!.id, tlId], laneIndex: 0, row: "back" });
+  check("threadling unlocks the cost (pays any one arrow)", ruleSet.listLegalActions(withTl, "p1").some((a) => a.type === "play_card" && a.cardId === arouser.id && (a.threadIds ?? []).includes(tlId)));
+  const played = engine.submitAction(withTl, { type: "play_card", gameId: withTl.gameId, playerId: "p1", cardId: arouser.id, threadIds: [verdants[1]!.id, verdants[2]!.id, tlId], laneIndex: 0, row: "back" });
   const loomAfter = loomsOf(played).p1!;
   check("threadling sacrificed (removed from the loom)", loomAfter.length === 4 && !loomAfter.some((t) => t.token));
-  check("real threads flipped, not removed", loomAfter.some((t) => t.id === verdants[0]!.id && t.exhausted === true) && loomAfter.some((t) => t.id === verdants[1]!.id && t.exhausted === true));
+  check("real threads flipped, not removed", loomAfter.some((t) => t.id === verdants[1]!.id && t.exhausted === true) && loomAfter.some((t) => t.id === verdants[2]!.id && t.exhausted === true));
 
   // Animate: thread -> unit card; death returns the thread to its owner's loom.
   const anim = newGame();

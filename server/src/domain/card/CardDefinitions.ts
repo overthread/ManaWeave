@@ -94,27 +94,56 @@ const s = (
   ...extra,
 });
 
+/**
+ * Built-in catalog — a faithful transcription of the three published colour
+ * sheets (docs/game-design.md §9): 12 Crimson (Riff — excite/unleash), 12
+ * Verdant (Sporic — Threadling/animate) and 12 Azure (Astral — constellation)
+ * cards, same ids the CSV loader slugifies, so a configured CARD_CSV_URL and
+ * the zero-config fallback produce the same game. Card text is the sheets'
+ * prose `effect` column, resolved by hand (§6.1).
+ */
 export const FALLBACK_CATALOG: readonly CardDefinition[] = [
-  // -------------------------------------------------------------- Verdant
-  u("sapling_warden", "Sapling Warden", "verdant", "verdant:up", 1, 3, { rarity: "common" }),
-  u("wildwood_elk", "Wildwood Elk", "verdant", "verdant:up verdant:up any:up", 2, 2, { text: "Costs two verdant threads woven Up plus any one thread woven Up.", rarity: "common" }),
-  u("grovekeeper", "Grovekeeper", "verdant", "verdant:right verdant:up", 2, 3, { onPlay: [{ kind: "heal_face", amount: 3 }], text: "When woven: gain 3 life. Costs verdant threads woven Up and Right.", rarity: "uncommon" }),
-  u("thornhide_behemoth", "Thornhide Behemoth", "verdant", "verdant:right verdant:up any:up", 3, 5, { text: "Costs verdant threads woven Up and Right, plus any thread woven Up.", rarity: "common" }),
-  u("ancient_treant", "Ancient Treant", "verdant", "verdant:up verdant:down any:up any:up", 6, 7, { text: "The whole loom, one verdant woven down.", rarity: "rare" }),
-  s("wildbloom", "Wildbloom", "verdant", "verdant:up", [{ kind: "heal_face", amount: 4 }], { text: "Gain 4 life.", rarity: "common" }),
-  s("natures_bounty", "Nature's Bounty", "verdant", "verdant:left verdant:up", [{ kind: "draw", amount: 1 }, { kind: "heal_face", amount: 2 }], { text: "Draw a card and gain 2 life. Costs verdant threads woven Up and Left.", rarity: "common" }),
-  s("deep_roots", "Deep Roots", "verdant", "verdant:left", [{ kind: "buff_unit", atk: 3, hp: 3, scope: "friendly" }], {
-    text: "A friendly unit gains +3/+3. Costs a verdant thread woven Left.",
-    rarity: "uncommon",
-  }),
-  s("titangrowth", "Titangrowth", "verdant", "verdant:left verdant:left", [{ kind: "buff_unit", atk: 4, hp: 4, scope: "friendly" }, { kind: "heal_face", amount: 4 }], { text: "A friendly unit gains +4/+4 and you gain 4 life. Costs two verdant threads woven Left.", rarity: "rare" }),
+  // -------------------------------------------------------------- Crimson
+  u("riff_larva", "Riff Larva", "crimson", "crimson:up crimson:up", 1, 1, { text: "Doom: Excite.", rarity: "common" }),
+  u("riff_eater", "Riff Eater", "crimson", "crimson:up crimson:up", 2, 1, { text: "Played: Discard 1 -> Excite.", rarity: "common" }),
+  u("riff_aggressor", "Riff Aggressor", "crimson", "crimson:up crimson:up crimson:up", 4, 1, { text: "Played: Your opponents draw 1. Unleash DOWN to not.", rarity: "uncommon" }),
+  u("riff_crawler", "Riff Crawler", "crimson", "crimson:right", 1, 1, { text: "Played: Unleash DOWN -> Draw 1.", rarity: "common" }),
+  u("riff_shrieker", "Riff Shrieker", "crimson", "crimson:right crimson:up", 2, 2, { text: "Played: Unleash UP -> Gain +2/+2.", rarity: "common" }),
+  u("riff_hunter", "Riff Hunter", "crimson", "crimson:right crimson:right", 3, 3, { text: "Hunt. Kill: Excite.", rarity: "uncommon" }),
+  s("wyrmbite", "Wyrmbite", "crimson", "crimson:left", [], { text: "Reaction. Played: Deal 2 damage to any front-row unit. Unleash LEFT to draw 1.", rarity: "common" }),
+  s("hunting_extincts", "Hunting Extincts", "crimson", "crimson:left", [], { text: "Played: Grant a friendly unit Hunt and +1/+0 this round. Excite.", rarity: "uncommon" }),
+  s("enrage", "Enrage", "crimson", "crimson:left crimson:up", [], { text: "Reaction. Played: Give a unit +2/+1 this round. Unleash LEFT to draw 1.", rarity: "common" }),
+  s("encore", "Encore", "crimson", "crimson:left crimson:up", [], { text: "Played: Draw 1, Excite. Unleash LEFT -> Draw 1.", rarity: "common" }),
+  u("riri_riff_star", "Riri, Riff Star", "crimson", "crimson:down crimson:up", 3, 5, { text: "The first time you unleash each turn, deal 2 damage to the enemy champion.", rarity: "legendary" }),
+  u("reil_riff_devourer", "Reil, Riff Devourer", "crimson", "crimson:down crimson:up crimson:up", 5, 4, { text: "Kill: Excite and Draw 1.", rarity: "uncommon" }),
 
-  // -------------------------------------------------------------- Neutral
-  u("wandering_apprentice", "Wandering Apprentice", "neutral", "any:up", 1, 1, { rarity: "common" }),
-  u("roadwarden", "Roadwarden", "neutral", "any:right any:up", 2, 2, { text: "Costs any threads woven Right and Up — weave any thread right to unlock it.", rarity: "common" }),
-  u("mercenary_captain", "Mercenary Captain", "neutral", "any:right any:right any:up", 3, 3, { text: "Costs two threads woven Right plus any thread woven Up.", rarity: "uncommon" }),
-  s("wanderers_map", "Wanderer's Map", "neutral", "any:left any:left", [{ kind: "draw", amount: 1 }], { text: "Draw a card. Costs any two threads woven Left.", rarity: "common" }),
-  s("flash_of_steel", "Flash of Steel", "neutral", "any:up", [{ kind: "buff_unit", atk: 1, hp: 0, scope: "friendly" }], { text: "A friendly unit gains +1 power.", rarity: "common" }),
+  // -------------------------------------------------------------- Verdant
+  u("sporic_sapling", "Sporic Sapling", "verdant", "verdant:up verdant:up", 1, 1, { text: "Doom: Sprout.", rarity: "common" }),
+  u("sporic_agent", "Sporic Agent", "verdant", "verdant:up verdant:up", 1, 1, { text: "If you have another unit in this lane, this has +1/+1.", rarity: "common" }),
+  u("sporic_arouser", "Sporic Arouser", "verdant", "verdant:up verdant:up verdant:up", 2, 1, { text: "Your front-row units here has +1/+0.", rarity: "common" }),
+  u("sporic_trader", "Sporic Trader", "verdant", "verdant:right", 2, 2, { text: "Played: Sprout.", rarity: "uncommon" }),
+  u("sporic_animater", "Sporic Animater", "verdant", "verdant:right verdant:up", 2, 2, { text: "Doom: Sprout, then Animate.", rarity: "common" }),
+  u("sporic_strategist", "Sporic Strategist", "verdant", "verdant:right verdant:right", 3, 3, { text: "Ability: Sacrifice a friendly unit, -UP -> Draw 1.", rarity: "uncommon" }),
+  s("guards", "Guards!", "verdant", "verdant:left", [], { text: "Reaction. Played: Animate, give it +2/+0 this round.", rarity: "common" }),
+  s("together_strong", "Together Strong", "verdant", "verdant:left", [], { text: "Played: Choose a unit, give it +1/+1 this round for each front-row unit you have.", rarity: "uncommon" }),
+  s("bonds_of_strength", "Bonds of Strength", "verdant", "verdant:left verdant:up", [], { text: "Reaction. Played: Give all your front-row units +2/+0 this round.", rarity: "common" }),
+  s("sacrifice", "Sacrifice", "verdant", "verdant:left verdant:up", [], { text: "Played: All players must sacrifice a unit if possible.", rarity: "common" }),
+  u("sire_sporic_commander", "Sire, Sporic Commander", "verdant", "verdant:down verdant:up", 3, 3, { text: "Your front row units have +1/+1.", rarity: "uncommon" }),
+  u("sivil_spore_mother", "Sivil, Spore Mother", "verdant", "verdant:down verdant:up verdant:up", 4, 4, { text: "The first time you Animate each turn, this gains +1/+1.", rarity: "legendary" }),
+
+  // ---------------------------------------------------------------- Azure
+  u("dawn_star", "Dawn Star", "azure", "azure:up azure:up", 1, 1, { text: "Played: Constellation 4 - This can attack immediately.", rarity: "common" }),
+  u("astral_mothling", "Astral Mothling", "azure", "azure:up azure:up", 1, 1, { text: "Doom: Weave.", rarity: "common" }),
+  u("astral_scribe", "Astral Scribe", "azure", "azure:up azure:up azure:up", 2, 1, { text: "Whenever you play a unit, Chart 1.", rarity: "common" }),
+  u("astral_ladybug", "Astral Ladybug", "azure", "azure:right", 1, 2, { text: "Constellation 3 - This has +1/+1.", rarity: "uncommon" }),
+  u("astral_weaver", "Astral Weaver", "azure", "azure:right azure:up", 2, 2, { text: "Ability: -UP, UP -> Weave.", rarity: "uncommon" }),
+  u("astral_serratist", "Astral Serratist", "azure", "azure:right azure:right", 3, 3, { text: "Kill: Weave", rarity: "uncommon" }),
+  s("starstruck", "Starstruck", "azure", "azure:left", [], { text: "Reaction. Played: Choose a unit, give it -1/-1 this turn.\nConstellation 3 - Chart 2.", rarity: "common" }),
+  s("starfall", "Starfall", "azure", "azure:left azure:up", [], { text: "Played: Deal 2 damage to any front-row unit.\nConstellation 3 - You may repeat this effect.", rarity: "uncommon" }),
+  s("grand_conjuncture", "Grand Conjuncture", "azure", "azure:left azure:up", [], { text: "Played: Weave twice or Draw 2.", rarity: "common" }),
+  s("the_stars_align", "The Stars Align", "azure", "azure:left azure:left", [], { text: "Reaction. Counter target spell.\nConstellation 3 - Chart 2.", rarity: "uncommon" }),
+  u("alia_astral_aligner", "Alia, Astral Aligner", "azure", "azure:down azure:up", 4, 4, { text: "Played: Reveal the top card of your deck, the cost of that card adds to your total Constellation this turn.\nConstellation 4 - Deal 6 damage to any front-row unit.", rarity: "legendary" }),
+  u("arsdeth_deathstar", "Arsdeth, Deathstar", "azure", "azure:down azure:down", 5, 5, { text: "Doom: Deal damage equal to your constellation to the enemy Champion.", rarity: "common" }),
 ];
 
 let definitions: CardDefinition[] = [...FALLBACK_CATALOG];

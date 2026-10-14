@@ -14,33 +14,44 @@ export interface DemoDeckTemplate {
 
 export const DEMO_DECKS: readonly DemoDeckTemplate[] = [
   {
-    name: "Verdant Growth",
-    loom: ["verdant", "verdant", "azure", "crimson"],
+    // Threadling/animate economy: every Sporic card ×2. Three verdant threads
+    // cover the 3-verdant costs (Sporic Arouser, Sivil); the azure thread is
+    // spare capacity.
+    name: "Sporic Swarm",
+    loom: ["verdant", "verdant", "verdant", "azure"],
     cards: {
-      sapling_warden: 3,
-      wildwood_elk: 3,
-      grovekeeper: 3,
-      thornhide_behemoth: 2,
-      ancient_treant: 2,
-      wildbloom: 3,
-      natures_bounty: 2,
-      deep_roots: 1,
-      wandering_apprentice: 1,
+      sporic_sapling: 2,
+      sporic_agent: 2,
+      sporic_arouser: 2,
+      sporic_trader: 2,
+      sporic_animater: 2,
+      sporic_strategist: 2,
+      guards: 2,
+      together_strong: 2,
+      bonds_of_strength: 2,
+      sacrifice: 2,
+      sire_sporic_commander: 2,
+      sivil_spore_mother: 2,
     },
   },
   {
-    name: "Verdant Bulwark",
-    loom: ["verdant", "verdant", "verdant", "verdant"],
+    // Excite/unleash economy: every Riff card ×2. Mono-crimson loom feeds the
+    // 3-crimson costs (Riff Aggressor, Reil).
+    name: "Riff Riot",
+    loom: ["crimson", "crimson", "crimson", "crimson"],
     cards: {
-      sapling_warden: 3,
-      wildwood_elk: 2,
-      grovekeeper: 2,
-      thornhide_behemoth: 3,
-      ancient_treant: 2,
-      wildbloom: 3,
-      titangrowth: 2,
-      roadwarden: 2,
-      wanderers_map: 1,
+      riff_larva: 2,
+      riff_eater: 2,
+      riff_aggressor: 2,
+      riff_crawler: 2,
+      riff_shrieker: 2,
+      riff_hunter: 2,
+      wyrmbite: 2,
+      hunting_extincts: 2,
+      enrage: 2,
+      encore: 2,
+      riri_riff_star: 2,
+      reil_riff_devourer: 2,
     },
   },
 ];

@@ -7,7 +7,7 @@ import type { ThreadColour } from "../card/Card.js";
 
 export const DECK_MIN_SIZE = 20;
 export const DECK_MAX_SIZE = 30;
-export const MAX_COPIES_PER_CARD = 3;
+export const MAX_COPIES_PER_CARD = 2;
 export const LOOM_SIZE = 4;
 /** Loom-pickable thread colours: Crimson, Azure, Verdant. */
 export const THREAD_COLOURS: readonly ThreadColour[] = ["crimson", "azure", "verdant"];

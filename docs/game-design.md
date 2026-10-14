@@ -20,8 +20,8 @@ All threads start the game pointing **up**. Threads are the game's only resource
 
 A card's cost is a **list of coloured arrows**. Each arrow is paid by exhausting one ready thread that **matches both the arrow's colour and its direction exactly**:
 
-> **Astral Strategist — cost: `azure:up + azure:right + any:up`** (☁️↑ ☁️→ ⬆)
-> Play it by flipping an azure thread pointing up, an azure thread pointing right, and any third thread pointing up.
+> **Astral Weaver — cost: `azure:up + azure:right`** (☁️↑ ☁️→)
+> Play it by flipping an azure thread pointing up and an azure thread pointing right.
 
 Rules for payment:
 
@@ -105,14 +105,14 @@ Every change to life, unit power and unit health is shown as a **floating delta 
 
 ## 7. Deck construction
 
-- **20–30 cards**, max **3 copies** of any one card.
+- **20–30 cards**, max **2 copies** of any one card.
 - You also choose your **loom composition**: exactly 4 thread colours.
 - **Constraint:** for every card in the deck, your loom must hold **at least as many threads of each cost colour as the card's most demanding single cost** — e.g. a deck running Dawn Star (`azure:up + azure:up`) needs ≥ 2 azure threads. `any` arrows demand nothing. Enforced server-side at game creation and client-side in the deck builder.
 - Typical looms are 2+2 (e.g. Crimson/Crimson/Azure/Azure). Mono-colour looms (4× one colour) maximise that colour's heavy cards but lose `any`-arrow flexibility... and every other colour.
 
-## 8. Built-in card catalog (14 cards)
+## 8. Built-in card catalog (36 cards)
 
-Costs below are written as `Colour ↑` arrows; a bare `↑` is an `any` arrow. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and can be replaced from CSV (§9). Every card is costed against the **amber** economy — see **[docs/amber.md](amber.md)** for the full price list and per-card audit. The Crimson and Azure card lists ship as the published CSV sheets (§9); Azure's list, CSV block and audit live in **[docs/azure.md](azure.md)**.
+Costs below are written as `Colour ↑` arrows. The catalog lives in `server/src/domain/card/CardDefinitions.ts` and **mirrors the three published colour sheets (§9) one for one** — same cards, same ids the CSV loader slugifies — so a configured `CARD_CSV_URL` and the zero-config fallback deal the same game. Card text is the sheets' prose `effect` column, resolved by hand per §6.1. Economy reference: the **amber** price list in **[docs/amber.md](amber.md)**; Azure's Constellation/Chart mechanics, CSV block and audit live in **[docs/azure.md](azure.md)**.
 
 ### Cost lanes
 
@@ -123,31 +123,58 @@ Each orientation is a lane, not just a number of arrows:
 - **← Left** — spells (one weave to unlock). Baseline: **← = cantrip**, **← ← = 4–5 damage**.
 - **↓ Down** — greater unit stats (two weaves to unlock). Baseline: **↓ ↑ = 6/6**. Aside from special ritual occasions, spells don't use DOWN — heavy spell effects belong on **← ←**.
 
-You have more ↑s early and more ←/→/↓s late: every weave rotates a thread *away* from up, so cheap up-costs strain as the game drags while rotated threads power the heavy cards. Units never cost ← and spells never cost →; a colour never demands more than two arrows of its own colour, so a 2+2 loom can cast its colours' whole curve.
+You have more ↑s early and more ←/→/↓s late: every weave rotates a thread *away* from up, so cheap up-costs strain as the game drags while rotated threads power the heavy cards. Units never cost ← and spells never cost →; the triple-arrow cards (Sporic Arouser, Riff Aggressor, Astral Scribe, Reil, Sivil) demand three threads of a single colour, pushing their decks toward mono or 3+1 looms.
 
-### Verdant 🌿
+### Crimson 🌋 — Riff (excite/unleash economy)
 
-| Card | Atk/Hp | Cost | Notes |
+| Card | Atk/Hp | Cost | Text |
 |---|---|---|---|
-| Sapling Warden | 1/3 | Verdant ↑ | |
-| Wildwood Elk | 2/2 | Verdant ↑ + Verdant ↑ + ↑ | The ↑ ↑ ↑ early-unit baseline. |
-| Grovekeeper | 2/3 | Verdant → + Verdant ↑ | When woven: gain 3 life. |
-| Thornhide Behemoth | 3/5 | Verdant → + Verdant ↑ + ↑ | |
-| Ancient Treant | 6/7 | Verdant ↑ + Verdant ↓ + ↑ + ↑ | The whole loom, one verdant woven down. |
-| Wildbloom | spell | Verdant ↑ | Gain 4 life. |
-| Nature's Bounty | spell | Verdant ← + Verdant ↑ | Draw a card and gain 2 life. |
-| Deep Roots | spell | Verdant ← | A friendly unit gains +3/+3. |
-| Titangrowth | spell | Verdant ← + Verdant ← | A friendly unit gains +4/+4 and you gain 4 life. |
+| Riff Larva | 1/1 | Crimson ↑ + Crimson ↑ | Doom: Excite. |
+| Riff Eater | 2/1 | Crimson ↑ + Crimson ↑ | Played: Discard 1 -> Excite. |
+| Riff Aggressor | 4/1 | Crimson ↑ + Crimson ↑ + Crimson ↑ | Played: Your opponents draw 1. Unleash DOWN to not. |
+| Riff Crawler | 1/1 | Crimson → | Played: Unleash DOWN -> Draw 1. |
+| Riff Shrieker | 2/2 | Crimson → + Crimson ↑ | Played: Unleash UP -> Gain +2/+2. |
+| Riff Hunter | 3/3 | Crimson → + Crimson → | Hunt. Kill: Excite. |
+| Wyrmbite | spell | Crimson ← | Reaction. Played: Deal 2 damage to any front-row unit. Unleash LEFT to draw 1. |
+| Hunting Extincts | spell | Crimson ← | Played: Grant a friendly unit Hunt and +1/+0 this round. Excite. |
+| Enrage | spell | Crimson ← + Crimson ↑ | Reaction. Played: Give a unit +2/+1 this round. Unleash LEFT to draw 1. |
+| Encore | spell | Crimson ← + Crimson ↑ | Played: Draw 1, Excite. Unleash LEFT -> Draw 1. |
+| Riri, Riff Star | 3/5 | Crimson ↓ + Crimson ↑ | The first time you unleash each turn, deal 2 damage to the enemy champion. |
+| Reil, Riff Devourer | 5/4 | Crimson ↓ + Crimson ↑ + Crimson ↑ | Kill: Excite and Draw 1. |
 
-### Neutral ◇
+### Verdant 🌿 — Sporic (Threadling/animate economy)
 
-| Card | Atk/Hp | Cost | Notes |
+| Card | Atk/Hp | Cost | Text |
 |---|---|---|---|
-| Wandering Apprentice | 1/1 | ↑ | |
-| Roadwarden | 2/2 | → + ↑ | Any colour. |
-| Mercenary Captain | 3/3 | → + → + ↑ | Any colour. |
-| Wanderer's Map | spell | ← + ← | Draw a card. Any colour. |
-| Flash of Steel | spell | ↑ | A friendly unit gains +1 power. |
+| Sporic Sapling | 1/1 | Verdant ↑ + Verdant ↑ | Doom: Sprout. |
+| Sporic Agent | 1/1 | Verdant ↑ + Verdant ↑ | If you have another unit in this lane, this has +1/+1. |
+| Sporic Arouser | 2/1 | Verdant ↑ + Verdant ↑ + Verdant ↑ | Your front-row units here has +1/+0. |
+| Sporic Trader | 2/2 | Verdant → | Played: Sprout. |
+| Sporic Animater | 2/2 | Verdant → + Verdant ↑ | Doom: Sprout, then Animate. |
+| Sporic Strategist | 3/3 | Verdant → + Verdant → | Ability: Sacrifice a friendly unit, -UP -> Draw 1. |
+| Guards! | spell | Verdant ← | Reaction. Played: Animate, give it +2/+0 this round. |
+| Together Strong | spell | Verdant ← | Played: Choose a unit, give it +1/+1 this round for each front-row unit you have. |
+| Bonds of Strength | spell | Verdant ← + Verdant ↑ | Reaction. Played: Give all your front-row units +2/+0 this round. |
+| Sacrifice | spell | Verdant ← + Verdant ↑ | Played: All players must sacrifice a unit if possible. |
+| Sire, Sporic Commander | 3/3 | Verdant ↓ + Verdant ↑ | Your front row units have +1/+1. |
+| Sivil, Spore Mother | 4/4 | Verdant ↓ + Verdant ↑ + Verdant ↑ | The first time you Animate each turn, this gains +1/+1. |
+
+### Azure ☁️ — Astral (constellation economy)
+
+| Card | Atk/Hp | Cost | Text |
+|---|---|---|---|
+| Dawn Star | 1/1 | Azure ↑ + Azure ↑ | Played: Constellation 4 - This can attack immediately. |
+| Astral Mothling | 1/1 | Azure ↑ + Azure ↑ | Doom: Weave. |
+| Astral Scribe | 2/1 | Azure ↑ + Azure ↑ + Azure ↑ | Whenever you play a unit, Chart 1. |
+| Astral Ladybug | 1/2 | Azure → | Constellation 3 - This has +1/+1. |
+| Astral Weaver | 2/2 | Azure → + Azure ↑ | Ability: -UP, UP -> Weave. |
+| Astral Serratist | 3/3 | Azure → + Azure → | Kill: Weave |
+| Starstruck | spell | Azure ← | Reaction. Played: Choose a unit, give it -1/-1 this turn. Constellation 3 - Chart 2. |
+| Starfall | spell | Azure ← + Azure ↑ | Played: Deal 2 damage to any front-row unit. Constellation 3 - You may repeat this effect. |
+| Grand Conjuncture | spell | Azure ← + Azure ↑ | Played: Weave twice or Draw 2. |
+| The Stars Align | spell | Azure ← + Azure ← | Reaction. Counter target spell. Constellation 3 - Chart 2. |
+| Alia, Astral Aligner | 4/4 | Azure ↓ + Azure ↑ | Played: Reveal the top card of your deck, the cost of that card adds to your total Constellation this turn. Constellation 4 - Deal 6 damage to any front-row unit. |
+| Arsdeth, Deathstar | 5/5 | Azure ↓ + Azure ↓ | Doom: Deal damage equal to your constellation to the enemy Champion. |
 
 ## 9. CSV catalog format
 
